@@ -36,7 +36,7 @@ class AccountVoucherSequence(ModelSingleton, ModelSQL, ModelView):
 
 
 class AccountVoucherPayMode(ModelSQL, ModelView):
-    'Account Voucher Pay Mode'
+    'Forma de Pago'
     __name__ = 'account.voucher.paymode'
 
     name = fields.Char('Name')
@@ -121,6 +121,21 @@ class AccountVoucher(ModelSQL, ModelView):
         return Transaction().context.get('company')
 
     @staticmethod
+    def default_journal():
+        pool = Pool()
+        Journal = pool.get('account.journal')
+        journal = Journal.search([('type','=', 'expense')])
+        journal_r = Journal.search([('type', '=', 'revenue')])
+        voucher_type_id = Transaction().context.get('voucher_type')
+        if voucher_type_id == 'receipt':
+            for j in journal_r:
+                return j.id
+            
+        else:
+            for j in journal:
+                return j.id
+        
+    @staticmethod
     def default_date():
         Date = Pool().get('ir.date')
         return Date.today()
@@ -161,7 +176,33 @@ class AccountVoucher(ModelSQL, ModelView):
             for line in self.lines:
                 total += line.amount_unreconciled or Decimal('0.00')
         return total
+    
+    """    
+    @fields.depends('pay_lines','party')
+    def on_change_pay_lines(self):
+        res= {}
+        res['pay_lines']={}
         
+        if self.party:
+            name = self.party.name
+            
+        
+        if self.pay_lines:
+            for p_l in self.pay_lines:
+                print "La linea de pago ",p_l
+                if p_l.banco:
+                    result = {
+                        'pay_mode':p_l.pay_mode,
+                        'pay_amount':p_l.pay_amount,
+                        'banco':p_l.banco,
+                        'titular_cuenta': name,
+                         } 
+                    res['pay_lines'].setdefault('add', []).append((0, result))
+                       
+        print "LO QUE SE VA A AGREGAR ", res
+        
+        return res
+    """    
     @fields.depends('lines', 'pay_lines')
     def on_change_with_amount_invoices(self, name=None):
         total = 0
@@ -250,42 +291,6 @@ class AccountVoucher(ModelSQL, ModelView):
             else:
                 res['lines'].setdefault('add', []).append((0, payment_line))
         return res
-    """
-    @fields.depends('amount','pay_lines', 'lines', 'party', 'journal')
-    def on_change_journal(self):
-        amount_invoice = self.amount
-        res = {}
-        if self.lines:
-            for line in self.lines:
-                Line = Pool().get('account.voucher.line')
-                if line.amount_unreconciled < amount_invoice:
-                    print "El valor que se asigna**" ,line.amount_unreconciled
-                    print "Valores ** ",line.amount_original, line.amount_unreconciled
-                    res['amount']= line.amount_unreconciled
-                    print "****",line.amount
-                    amount_invoice =  amount_invoice -line.amount_unreconciled
-                    print "Monto 2", line.amount_unreconciled, amount_invoice
-                    payment_line = {
-                        'amount': line.amount_unreconciled,
-                    }
-                    print line
-                elif line.amount_unreconciled >= amount_invoice:
-                    res['amount']= amount_invoice
-                    print "Monto 1 ", line.amount, amount_invoice
-                    print "****",line.amount
-                    amount_invoice = Decimal('0.0')
-                    print "Nuevo valor de monto ", amount_invoice
-                    print res
-                    payment_line = {
-                        'amount': amount_invoice,
-                    }
-                    print line
-                    
-            if amount_invoice != 0:
-                print "AUN SOBRA PARA ANTICIPO***"         
-            print "Res",res        
-            return payment_line
-    """         
                   
     @classmethod
     def delete(cls, vouchers):
@@ -475,21 +480,15 @@ class AccountVoucher(ModelSQL, ModelView):
         return True
     
     def get_value_lines(self):
-        print "El valor ",self.amount
         amount_invoice = self.amount
         if self.lines:
             res = {}
             for line in self.lines:
-                print "Las lineas ", self.lines
                 if line.amount_unreconciled < amount_invoice:
-                    print "LINEA** ", line
-                    print "El valor que se asigna**" ,line.amount_unreconciled
                     value = Decimal('0.0')
                     amount_invoice -= line.amount_unreconciled
                     line.write([line],{ 'amount': line.amount_unreconciled})
                     line.write([line],{ 'amount_unreconciled': value})
-                    
-                    print "El valor nuevo**" ,amount_invoice
                     
                 if line.amount_unreconciled >= amount_invoice:
                     print "LINEA** ", line
@@ -498,11 +497,11 @@ class AccountVoucher(ModelSQL, ModelView):
                     line.write([line],{ 'amount_unreconciled': value})
                     amount_invoice = Decimal('0.0')
                     print "Nuevo valor de monto ", amount_invoice
-                    
+            
             if amount_invoice != 0:
                 warning_name = u'Tiene un excedente ¿Desea generar un anticipo?'
-                self.raise_user_warning(warning_name, 'payment_advanced')  
-    
+                self.raise_user_warning(warning_name, 'payment_advanced')
+            
     def get_amount2words(self, value):
             if conversor:
                 return (conversor.cardinal(int(value))).upper()
@@ -516,7 +515,7 @@ class AccountVoucher(ModelSQL, ModelView):
                 amount += line.amount 
                 value_words = self.get_amount2words(amount)
                 self.write([self],{ 'amount_to_pay_words': value_words})
-                
+    
     @classmethod
     @ModelView.button
     def post(cls, vouchers):
@@ -610,36 +609,9 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
     pay_amount = fields.Numeric('Pay Amount', digits=(16, 2), required=True,
         states=_STATES)
     banco = fields.Many2One('bank', 'Banco')
-    numero_cuenta_tercero = fields.Many2One('bank.account.number',u'Numero de Cuenta')
+    numero_cuenta_tercero = fields.Char(u'Numero de Cuenta')
     numero_doc = fields.Char(u'Numero de Documento')
-    titular_cuenta = fields.Many2One('party.party',u'Titular de la Cuenta')
-    
-    """
-    @staticmethod
-    def default_numero_cuenta_tercero():
-        print "Ingresa"
-        pool = Pool()
-        Cuentas = pool.get('bank.account-party.party')
-        cuenta = Cuentas.search('owner','=', voucher.party)
-        print "La cuenta"
-        return cuenta
-
-    @fields.depends('numero_cuenta_tercero')
-    def on_change_with_numero_cuenta_tercero(self, name=None):
-        pool = Pool()
-        Cuentas = pool.get('bank.account-party.party')
-        party = Cuentas.search([('account','=', self.numero_cuenta_tercero)])
-        for p in party:
-            titular = p.owner
-            return party
-      
-    @fields.depends('pay_amount')  
-    def on_change_pay_amount(self, name=None):
-        suma = 0
-        suma = self.pay_amount + suma
-        print "La suma", suma
-        return suma
-    """   
+    titular_cuenta = fields.Char(u'Titular de la cuenta')
     
 class VoucherReport(Report):
     'Voucher Report'
@@ -649,9 +621,14 @@ class VoucherReport(Report):
     def parse(cls, report, objects, data, localcontext=None):
         Company = Pool().get('company.company')
         company_id = Transaction().context.get('company')
-        
+        for obj in objects:
+            d = str(obj.amount)
+            decimales = d[-2:]
+            if decimales[0] == '.':
+                 decimales = decimales[1]+'0'
+                 
         localcontext['company'] = Company(company_id)
-        
+        localcontext['decimales'] = decimales
         new_objs = []
         for obj in objects:
             if obj.amount_to_pay and conversor and not obj.amount_to_pay_words:

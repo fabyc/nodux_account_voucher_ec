@@ -15,7 +15,7 @@ class PayInvoice(Wizard):
 
     start = StateView('account.voucher',
         'nodux_account_voucher_ec.account_voucher_form', [
-            Button('Close', 'end', 'tryton-ok', default=True),
+            Button('Cerrar', 'end', 'tryton-ok', default=True),
             ])
 
     def default_start(self, fields):
@@ -32,16 +32,19 @@ class PayInvoice(Wizard):
         default['from_pay_invoice'] = True
 
         amount_to_pay = Decimal('0.0')
-        if invoice.type == 'in_invoice':
+        if invoice.type in( 'in_invoice', 'in_withholding'):
             default['voucher_type'] = 'payment'
             line_type = 'cr'
-        elif invoice.type == 'out_invoice':
+        elif invoice.type in ('out_invoice', 'out_withholding'):
             default['voucher_type'] = 'receipt'
             line_type = 'dr'
             amount_to_pay = invoice.amount_to_pay
-
-        line_to_pay, = invoice.lines_to_pay
-
+        line_to_pay = invoice.lines_to_pay
+        
+        for l in line_to_pay:
+            if l.reconciliation == None:
+                line_to_pay = l
+        
         lines = {
             'name': invoice.number,
             'account': invoice.account.id,

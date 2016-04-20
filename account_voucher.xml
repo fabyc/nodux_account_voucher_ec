@@ -117,6 +117,24 @@ the full copyright notices and license terms. -->
             <field name="type">tree</field>
             <field name="name">lines_tree</field>
         </record>
+        <!-- 
+          <record model="ir.ui.view" id="lines_view_tree">
+            <field name="model">account.voucher.line</field>
+            <field name="type">tree</field>
+            <field name="arch" type="xml">
+                <![CDATA[
+                <tree string="Lines"
+                    colors="If(Greater(Eval('date_expire'), 'date'),'red')">
+                    <field name="name" expand="1"/>
+                    <field name="date"/>
+                    <field name="date_expire"/>
+                    <field name="amount_original"/>
+                    <field name="amount_unreconciled"/>
+                    <field name="amount"/>
+                </tree>
+                ]]>
+            </field>
+        </record>-->
 
         <record model="ir.ui.view" id="lines_credits_view_tree">
             <field name="model">account.voucher.line.credits</field>
@@ -133,6 +151,12 @@ the full copyright notices and license terms. -->
             <field name="model">account.voucher.line.paymode</field>
             <field name="type">tree</field>
             <field name="name">pay_lines_tree</field>
+        </record>
+        
+        <record model="ir.ui.view" id="pay_lines_view_form">
+            <field name="model">account.voucher.line.paymode</field>
+            <field name="type">form</field>
+            <field name="name">pay_lines_form</field>
         </record>
 
     </data>

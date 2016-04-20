@@ -27,7 +27,7 @@ the full copyright notices and license terms. -->
     <notebook colspan="4">
         <page string="Pay Mode Lines" id="pay_lines">
             <field name="pay_lines" mode="tree" colspan="4"
-                view_ids="nodux_account_voucher_ec.pay_lines_view_tree"/>
+                view_ids="nodux_account_voucher_ec.pay_lines_view_tree,nodux_account_voucher_ec.pay_lines_view_form"/>
         </page>
     </notebook>
     <notebook colspan="4">
