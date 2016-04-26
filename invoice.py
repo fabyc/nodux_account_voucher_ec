@@ -20,17 +20,19 @@ class PayInvoice(Wizard):
 
     def default_start(self, fields):
         Date = Pool().get('ir.date')
-
         default = {
             'lines': [],
         }
         Invoice = Pool().get('account.invoice')
-
+        Journal = Pool().get('account.journal')
+        
         invoice = Invoice(Transaction().context.get('active_id'))
         default['date'] = Date.today()
         default['party'] = invoice.party.id
         default['from_pay_invoice'] = True
-
+        default['journal'] = invoice.journal.id
+        
+                
         amount_to_pay = Decimal('0.0')
         if invoice.type in( 'in_invoice', 'in_withholding'):
             default['voucher_type'] = 'payment'
@@ -45,16 +47,17 @@ class PayInvoice(Wizard):
             if l.reconciliation == None:
                 line_to_pay = l
         
-        lines = {
-            'name': invoice.number,
-            'account': invoice.account.id,
-            'amount': amount_to_pay,
-            'amount_original': invoice.total_amount,
-            'amount_unreconciled': invoice.amount_to_pay,
-            'line_type': line_type,
-            'move_line': line_to_pay.id,
-            'date': invoice.invoice_date,
-            }
-        default['lines'].append(lines)
-
+            lines = {
+                'name': invoice.number,
+                'account': line_to_pay.account.id,
+                'amount': Decimal('0.00'),
+                'amount_original': invoice.total_amount,
+                'amount_unreconciled': abs(line_to_pay.amount_residual),
+                'line_type': line_type,
+                'move_line': line_to_pay.id,
+                'date': line_to_pay.date,
+                'date_expire': line_to_pay.maturity_date,
+                }
+            default['lines'].append(lines)
+        print "Default ", default
         return default

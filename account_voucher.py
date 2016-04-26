@@ -131,7 +131,7 @@ class AccountVoucher(ModelSQL, ModelView):
             for j in journal_r:
                 return j.id
             
-        else:
+        if voucher_type_id == 'payment':
             for j in journal:
                 return j.id
         
