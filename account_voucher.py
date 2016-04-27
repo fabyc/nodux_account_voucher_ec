@@ -8,6 +8,9 @@ from trytond.transaction import Transaction
 from trytond.pyson import Eval, In
 from trytond.pool import Pool
 from trytond.report import Report
+import pytz
+from datetime import datetime,timedelta
+import time
 
 conversor = None
 try:
@@ -491,12 +494,10 @@ class AccountVoucher(ModelSQL, ModelView):
                     line.write([line],{ 'amount_unreconciled': value})
                     
                 if line.amount_unreconciled >= amount_invoice:
-                    print "LINEA** ", line
                     value = line.amount_unreconciled - amount_invoice
                     line.write([line],{ 'amount': amount_invoice})
                     line.write([line],{ 'amount_unreconciled': value})
                     amount_invoice = Decimal('0.0')
-                    print "Nuevo valor de monto ", amount_invoice
             
             if amount_invoice != 0:
                 warning_name = u'Tiene un excedente ¿Desea generar un anticipo?'
@@ -609,7 +610,7 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
     pay_amount = fields.Numeric('Pay Amount', digits=(16, 2), required=True,
         states=_STATES)
     banco = fields.Many2One('bank', 'Banco')
-    numero_cuenta_tercero = fields.Char(u'Numero de Cuenta')
+    cuenta_tercero = fields.Char(u'Numero de Cuenta')
     numero_doc = fields.Char(u'Numero de Documento')
     titular_cuenta = fields.Char(u'Titular de la cuenta')
     
@@ -621,21 +622,30 @@ class VoucherReport(Report):
     def parse(cls, report, objects, data, localcontext=None):
         Company = Pool().get('company.company')
         company_id = Transaction().context.get('company')
+        company = Company(company_id)
         for obj in objects:
             d = str(obj.amount)
             decimales = d[-2:]
             if decimales[0] == '.':
                  decimales = decimales[1]+'0'
                  
-        localcontext['company'] = Company(company_id)
+        if company.timezone:
+            timezone = pytz.timezone(company.timezone)
+            dt = datetime.now()
+            hora = datetime.astimezone(dt.replace(tzinfo=pytz.utc), timezone)
+            
+            
+        localcontext['company'] = company
         localcontext['decimales'] = decimales
+        localcontext['hora'] = hora.strftime('%H:%M:%S')
+        localcontext['fecha'] = hora.strftime('%d/%m/%Y')
+        
         new_objs = []
         for obj in objects:
             if obj.amount_to_pay and conversor and not obj.amount_to_pay_words:
                 obj.amount_to_pay_words = obj.get_amount2words(obj.amount_to_pay)
             new_objs.append(obj)
         return super(VoucherReport, cls).parse(report,
-                new_objs, data, localcontext)
-                
+                new_objs, data, localcontext)              
                 
 
