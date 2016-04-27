@@ -6,7 +6,7 @@ the full copyright notices and license terms. -->
     <field name="pay_mode" expand="1"/>
     <field name="pay_amount" expand="1"/>
     <field name="banco" expand="1"/>
-    <field name="numero_cuenta_tercero" expand="1"/>
+    <field name="cuenta_tercero" expand="1"/>
     <field name="numero_doc" expand="1"/>
     <field name="titular_cuenta" expand="1"/>
 </tree>
