@@ -256,7 +256,6 @@ class AccountVoucher(ModelSQL, ModelView):
         ])
 
         for line in move_lines:
-
             invoice = InvoiceAccountMoveLine.search([
                 ('line', '=', line.id),
             ])
@@ -274,6 +273,8 @@ class AccountVoucher(ModelSQL, ModelView):
             model = str(line.origin)
             if model[:model.find(',')] == 'account.invoice':
                 name = Invoice(line.origin.id).number
+                
+            
             payment_line = {
                 'name': name,
                 'account': line.account.id,
