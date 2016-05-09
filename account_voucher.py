@@ -150,10 +150,10 @@ class AccountVoucher(ModelSQL, ModelView):
     def set_number(self):
         Sequence = Pool().get('ir.sequence')
         AccountVoucherSequence = Pool().get('account.voucher.sequence')
-
-        sequence = AccountVoucherSequence(1)
-        self.write([self], {'number': Sequence.get_id(
-            sequence.voucher_sequence.id)})
+        if self.voucher_type == 'receipt':
+            sequence = AccountVoucherSequence(1)
+            self.write([self], {'number': Sequence.get_id(
+                sequence.voucher_sequence.id)})
     
     @fields.depends('party','lines', 'pay_lines', 'lines_credits', 'lines_debits')
     def on_change_with_amount(self, name=None):
@@ -256,6 +256,7 @@ class AccountVoucher(ModelSQL, ModelView):
         ])
 
         for line in move_lines:
+
             invoice = InvoiceAccountMoveLine.search([
                 ('line', '=', line.id),
             ])
@@ -273,8 +274,6 @@ class AccountVoucher(ModelSQL, ModelView):
             model = str(line.origin)
             if model[:model.find(',')] == 'account.invoice':
                 name = Invoice(line.origin.id).number
-                
-            
             payment_line = {
                 'name': name,
                 'account': line.account.id,
@@ -438,7 +437,6 @@ class AccountVoucher(ModelSQL, ModelView):
         Move = pool.get('account.move')
         MoveLine = pool.get('account.move.line')
         Invoice = pool.get('account.invoice')
-
         created_lines = MoveLine.create(move_lines)
         Move.post([self.move])
 
@@ -483,6 +481,45 @@ class AccountVoucher(ModelSQL, ModelView):
 
         return True
     
+    
+    def prepare_postdated_lines(self):
+        pool = Pool()
+        Period = pool.get('account.period')
+        Move = pool.get('account.move')
+        Invoice = pool.get('account.invoice')
+        
+        postdated_lines = []
+        
+        if self.pay_lines:
+            for line in self.pay_lines:
+                if line.pay_mode.account.name == 'EFECTOS DE COBRO INMEDIATO (CHEQUES)':
+                    postdated_lines.append({
+                    'reference': line.voucher.move,
+                    'name': line.voucher.number,
+                    'amount': line.pay_amount,
+                    'account': line.pay_mode.account.id,
+                    'date': line.fecha,
+                })
+                
+        return postdated_lines
+        
+    def create_postdated_check(self, postdated_lines):
+        pool = Pool()
+        Postdated = pool.get('account.postdated')
+        PostdatedLine = pool.get('account.postdated.line')
+        postdated = Postdated()
+        
+        for line in postdated_lines:
+            date = line['date']
+            
+        postdated.party = self.party
+        postdated.post_check_type = 'receipt'
+        postdated.journal = 1
+        postdated.lines = postdated_lines
+        postdated.state = 'draft'
+        postdated.date = date
+        postdated.save()
+        
     def get_value_lines(self):
         amount_invoice = self.amount
         if self.lines:
@@ -526,7 +563,9 @@ class AccountVoucher(ModelSQL, ModelView):
             voucher.get_toWords()
             voucher.set_number()
             move_lines = voucher.prepare_move_lines()
+            postdated_lines = voucher.prepare_postdated_lines()
             voucher.create_move(move_lines)
+            voucher.create_postdated_check(postdated_lines)
         cls.write(vouchers, {'state': 'posted'})
 
 
@@ -605,7 +644,8 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
     'Account Voucher Line Pay Mode'
     __name__ = 'account.voucher.line.paymode'
     
-    voucher = fields.Many2One('account.voucher', 'Voucher')
+    voucher = fields.Many2One('account.voucher', 'Voucher', ondelete='CASCADE',
+        select=True)
     pay_mode = fields.Many2One('account.voucher.paymode', 'Pay Mode',
         required=True, states=_STATES)
     pay_amount = fields.Numeric('Pay Amount', digits=(16, 2), required=True,
@@ -614,6 +654,32 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
     cuenta_tercero = fields.Char(u'Numero de Cuenta')
     numero_doc = fields.Char(u'Numero de Documento')
     titular_cuenta = fields.Char(u'Titular de la cuenta')
+    fecha = fields.Date('Fecha de cheque')
+    
+    @classmethod
+    def __setup__(cls):
+        super(AccountVoucherLinePaymode, cls).__setup__()
+        
+    @fields.depends('_parent_voucher.party', 'pay_mode')
+    def on_change_pay_mode(self):
+        result = {}
+        if self.voucher:
+            if self.pay_mode:
+                name_mode = self.pay_mode.name
+                name = name_mode.lower()
+                party = self.voucher.party.name
+                if 'cheque' in name:
+                    if party:
+                        titular_cuenta = party
+                    else:
+                        titular_cuenta = ""
+                    result['titular_cuenta'] = titular_cuenta
+        else:
+            titular_cuenta = ""
+            result['titular_cuenta'] = titular_cuenta
+                        
+        return result
+        
     
 class VoucherReport(Report):
     'Voucher Report'
@@ -635,7 +701,7 @@ class VoucherReport(Report):
             dt = datetime.now()
             hora = datetime.astimezone(dt.replace(tzinfo=pytz.utc), timezone)
             
-            
+        
         localcontext['company'] = company
         localcontext['decimales'] = decimales
         localcontext['hora'] = hora.strftime('%H:%M:%S')

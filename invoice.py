@@ -46,17 +46,17 @@ class PayInvoice(Wizard):
         for l in line_to_pay:
             if l.reconciliation == None:
                 line_to_pay = l
-            
-                lines = {
-                    'name': invoice.number,
-                    'account': line_to_pay.account.id,
-                    'amount': Decimal('0.00'),
-                    'amount_original': invoice.total_amount,
-                    'amount_unreconciled': abs(line_to_pay.amount_residual),
-                    'line_type': line_type,
-                    'move_line': line_to_pay.id,
-                    'date': line_to_pay.date,
-                    'date_expire': line_to_pay.maturity_date,
-                    }
-                default['lines'].append(lines)
+        
+            lines = {
+                'name': invoice.number,
+                'account': line_to_pay.account.id,
+                'amount': Decimal('0.00'),
+                'amount_original': invoice.total_amount,
+                'amount_unreconciled': abs(line_to_pay.amount_residual),
+                'line_type': line_type,
+                'move_line': line_to_pay.id,
+                'date': line_to_pay.date,
+                'date_expire': line_to_pay.maturity_date,
+                }
+            default['lines'].append(lines)
         return default
