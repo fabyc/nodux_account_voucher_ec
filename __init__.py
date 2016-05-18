@@ -6,7 +6,7 @@ from trytond.pool import Pool
 from .move import *
 from .account_voucher import *
 from .invoice import *
-
+from .sale import *
 
 def register():
     Pool.register(
@@ -19,6 +19,7 @@ def register():
         AccountVoucherLineCredits,
         AccountVoucherLineDebits,
         AccountVoucherLinePaymode,
+        Sale,
         module='nodux_account_voucher_ec', type_='model')
     Pool.register(
         PayInvoice,

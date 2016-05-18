@@ -40,9 +40,6 @@ class Line:
             for payment_line in invoice.payment_lines:
                 if payment_line.id == self.id:
                     continue
-                if payment_line.reconciliation:
-                    continue
-                
                 move_line_total += payment_line.debit - payment_line.credit
             res = move_line_total
         return res

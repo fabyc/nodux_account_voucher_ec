@@ -19,7 +19,7 @@ try:
 except:
     print("Warning: Does not possible import numword module!")
     print("Please install it...!")
-    
+
 
 __all__ = ['AccountVoucherSequence', 'AccountVoucherPayMode', 'AccountVoucher',
     'AccountVoucherLine', 'AccountVoucherLineCredits',
@@ -90,7 +90,7 @@ class AccountVoucher(ModelSQL, ModelView):
     from_pay_invoice = fields.Boolean('Voucher launched from Pay invoice')
     amount_to_pay_words = fields.Char('Amount to Pay (Words)',
             states={'readonly': True})
-            
+
     @classmethod
     def __setup__(cls):
         super(AccountVoucher, cls).__setup__()
@@ -133,11 +133,11 @@ class AccountVoucher(ModelSQL, ModelView):
         if voucher_type_id == 'receipt':
             for j in journal_r:
                 return j.id
-            
+
         if voucher_type_id == 'payment':
             for j in journal:
                 return j.id
-        
+
     @staticmethod
     def default_date():
         Date = Pool().get('ir.date')
@@ -154,7 +154,7 @@ class AccountVoucher(ModelSQL, ModelView):
             sequence = AccountVoucherSequence(1)
             self.write([self], {'number': Sequence.get_id(
                 sequence.voucher_sequence.id)})
-    
+
     @fields.depends('party','lines', 'pay_lines', 'lines_credits', 'lines_debits')
     def on_change_with_amount(self, name=None):
         amount = Decimal('0.0')
@@ -179,17 +179,17 @@ class AccountVoucher(ModelSQL, ModelView):
             for line in self.lines:
                 total += line.amount_unreconciled or Decimal('0.00')
         return total
-    
-    """    
+
+    """
     @fields.depends('pay_lines','party')
     def on_change_pay_lines(self):
         res= {}
         res['pay_lines']={}
-        
+
         if self.party:
             name = self.party.name
-            
-        
+
+
         if self.pay_lines:
             for p_l in self.pay_lines:
                 print "La linea de pago ",p_l
@@ -199,13 +199,13 @@ class AccountVoucher(ModelSQL, ModelView):
                         'pay_amount':p_l.pay_amount,
                         'banco':p_l.banco,
                         'titular_cuenta': name,
-                         } 
+                         }
                     res['pay_lines'].setdefault('add', []).append((0, result))
-                       
+
         print "LO QUE SE VA A AGREGAR ", res
-        
+
         return res
-    """    
+    """
     @fields.depends('lines', 'pay_lines')
     def on_change_with_amount_invoices(self, name=None):
         total = 0
@@ -294,7 +294,7 @@ class AccountVoucher(ModelSQL, ModelView):
             else:
                 res['lines'].setdefault('add', []).append((0, payment_line))
         return res
-                  
+
     @classmethod
     def delete(cls, vouchers):
         if not vouchers:
@@ -309,7 +309,13 @@ class AccountVoucher(ModelSQL, ModelView):
         Period = pool.get('account.period')
         Move = pool.get('account.move')
         Invoice = pool.get('account.invoice')
-
+        Sale = pool.get('sale.sale')
+        original = Decimal(0.0)
+        unreconcilied = Decimal(0.0)
+        paid_amount = Decimal(0.0)
+        residual_amount = Decimal(0.0)
+        name = None
+        invoice_d = None
         # Check amount
         if not self.amount > Decimal("0.0"):
             self.raise_user_error('missing_pay_lines')
@@ -325,6 +331,7 @@ class AccountVoucher(ModelSQL, ModelView):
         self.write([self], {
                 'move': move.id,
                 })
+
 
         #
         # Pay Modes
@@ -439,6 +446,29 @@ class AccountVoucher(ModelSQL, ModelView):
         Invoice = pool.get('account.invoice')
         created_lines = MoveLine.create(move_lines)
         Move.post([self.move])
+        Sale = pool.get('sale.sale')
+        invoice_d = None
+        sales = None
+        for line in self.lines:
+            original = line.amount_original
+            unreconciled = line.amount_unreconciled
+            name = line.name
+        if name != None:
+            invoice = Invoice.search([('number', '=', name), ('description', '!=', None)])
+        if invoice:
+            for i in invoice:
+                invoice_d = i.description
+
+        if invoice_d != None:
+            sales = Sale.search([('reference', '=', invoice_d)])
+
+        if sales:
+            for s in sales:
+                sale = s
+            paid_amount = Decimal(original - unreconciled)
+            residual_amount = Decimal(unreconciled)
+            sale.get_residual_amount([sale], ['residual_amount'])
+            sale.get_paid_amount([sale], ['paid_amount'])
 
         # reconcile check
         for line in self.lines:
@@ -480,19 +510,20 @@ class AccountVoucher(ModelSQL, ModelView):
             MoveLine.reconcile(reconcile_lines)
 
         return True
-    
-    
+
+
     def prepare_postdated_lines(self):
         pool = Pool()
         Period = pool.get('account.period')
         Move = pool.get('account.move')
         Invoice = pool.get('account.invoice')
-        
-        postdated_lines = []
-        
+
+        postdated_lines = None
+
         if self.pay_lines:
             for line in self.pay_lines:
                 if line.pay_mode.account.name == 'EFECTOS DE COBRO INMEDIATO (CHEQUES)':
+                    postdated_lines = []
                     postdated_lines.append({
                     'reference': line.voucher.move,
                     'name': line.voucher.number,
@@ -500,26 +531,26 @@ class AccountVoucher(ModelSQL, ModelView):
                     'account': line.pay_mode.account.id,
                     'date': line.fecha,
                 })
-                
+
         return postdated_lines
-        
+
     def create_postdated_check(self, postdated_lines):
         pool = Pool()
         Postdated = pool.get('account.postdated')
         PostdatedLine = pool.get('account.postdated.line')
         postdated = Postdated()
-        
-        for line in postdated_lines:
-            date = line['date']
-            
-        postdated.party = self.party
-        postdated.post_check_type = 'receipt'
-        postdated.journal = 1
-        postdated.lines = postdated_lines
-        postdated.state = 'draft'
-        postdated.date = date
-        postdated.save()
-        
+
+        if postdated_lines != None:
+            for line in postdated_lines:
+                date = line['date']
+                postdated.party = self.party
+                postdated.post_check_type = 'receipt'
+                postdated.journal = 1
+                postdated.lines = postdated_lines
+                postdated.state = 'draft'
+                postdated.date = date
+                postdated.save()
+
     def get_value_lines(self):
         amount_invoice = self.amount
         if self.lines:
@@ -530,42 +561,47 @@ class AccountVoucher(ModelSQL, ModelView):
                     amount_invoice -= line.amount_unreconciled
                     line.write([line],{ 'amount': line.amount_unreconciled})
                     line.write([line],{ 'amount_unreconciled': value})
-                    
+
                 if line.amount_unreconciled >= amount_invoice:
                     value = line.amount_unreconciled - amount_invoice
                     line.write([line],{ 'amount': amount_invoice})
                     line.write([line],{ 'amount_unreconciled': value})
                     amount_invoice = Decimal('0.0')
-            
+
             if amount_invoice != 0:
                 warning_name = u'Tiene un excedente ¿Desea generar un anticipo?'
                 self.raise_user_warning(warning_name, 'payment_advanced')
-            
+
     def get_amount2words(self, value):
             if conversor:
                 return (conversor.cardinal(int(value))).upper()
             else:
                 return ''
-                
+
     def get_toWords(self):
         if self.lines:
             amount = Decimal('0.0')
             for line in self.lines:
-                amount += line.amount 
+                amount += line.amount
                 value_words = self.get_amount2words(amount)
                 self.write([self],{ 'amount_to_pay_words': value_words})
-    
+
     @classmethod
     @ModelView.button
     def post(cls, vouchers):
+        pool = Pool()
+        module = None
+        Module = pool.get('ir.module.module')
+        module = Module.search([('name', '=', 'nodux_account_postdated_check'), ('state', '=', 'installed')])
         for voucher in vouchers:
             voucher.get_value_lines()
             voucher.get_toWords()
             voucher.set_number()
             move_lines = voucher.prepare_move_lines()
-            postdated_lines = voucher.prepare_postdated_lines()
             voucher.create_move(move_lines)
-            voucher.create_postdated_check(postdated_lines)
+            if module:
+                postdated_lines = voucher.prepare_postdated_lines()
+                voucher.create_postdated_check(postdated_lines)
         cls.write(vouchers, {'state': 'posted'})
 
 
@@ -589,7 +625,7 @@ class AccountVoucherLine(ModelSQL, ModelView):
     date = fields.Date('Date')
     date_expire = fields.Function(fields.Date('Expire date'),
             'get_expire_date')
-    
+
     def get_reference(self, name):
         Invoice = Pool().get('account.invoice')
 
@@ -643,7 +679,7 @@ class AccountVoucherLineDebits(ModelSQL, ModelView):
 class AccountVoucherLinePaymode(ModelSQL, ModelView):
     'Account Voucher Line Pay Mode'
     __name__ = 'account.voucher.line.paymode'
-    
+
     voucher = fields.Many2One('account.voucher', 'Voucher', ondelete='CASCADE',
         select=True)
     pay_mode = fields.Many2One('account.voucher.paymode', 'Pay Mode',
@@ -655,11 +691,11 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
     numero_doc = fields.Char(u'Numero de Documento')
     titular_cuenta = fields.Char(u'Titular de la cuenta')
     fecha = fields.Date('Fecha de cheque')
-    
+
     @classmethod
     def __setup__(cls):
         super(AccountVoucherLinePaymode, cls).__setup__()
-        
+
     @fields.depends('_parent_voucher.party', 'pay_mode')
     def on_change_pay_mode(self):
         result = {}
@@ -677,10 +713,10 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
         else:
             titular_cuenta = ""
             result['titular_cuenta'] = titular_cuenta
-                        
+
         return result
-        
-    
+
+
 class VoucherReport(Report):
     'Voucher Report'
     __name__ = 'account.voucher.report'
@@ -695,24 +731,22 @@ class VoucherReport(Report):
             decimales = d[-2:]
             if decimales[0] == '.':
                  decimales = decimales[1]+'0'
-                 
+
         if company.timezone:
             timezone = pytz.timezone(company.timezone)
             dt = datetime.now()
             hora = datetime.astimezone(dt.replace(tzinfo=pytz.utc), timezone)
-            
-        
+
+
         localcontext['company'] = company
         localcontext['decimales'] = decimales
         localcontext['hora'] = hora.strftime('%H:%M:%S')
         localcontext['fecha'] = hora.strftime('%d/%m/%Y')
-        
+
         new_objs = []
         for obj in objects:
             if obj.amount_to_pay and conversor and not obj.amount_to_pay_words:
                 obj.amount_to_pay_words = obj.get_amount2words(obj.amount_to_pay)
             new_objs.append(obj)
         return super(VoucherReport, cls).parse(report,
-                new_objs, data, localcontext)              
-                
-
+                new_objs, data, localcontext)

@@ -9,6 +9,8 @@
     <field name="pay_amount"/>
     <label name="banco"/>
     <field name="banco"/>
+    <label name="fecha"/>
+    <field name="fecha"/>
     <label name="cuenta_tercero"/>
     <field name="cuenta_tercero"/>
     <label name="numero_doc"/>
