@@ -21,7 +21,7 @@ except:
     print("Please install it...!")
 
 
-__all__ = ['AccountVoucherSequence', 'AccountVoucherPayMode', 'AccountVoucher',
+__all__ = ['AccountVoucherSequence', 'AccountVoucherSequencePayment', 'AccountVoucherPayMode', 'AccountVoucher',
     'AccountVoucherLine', 'AccountVoucherLineCredits',
     'AccountVoucherLineDebits', 'AccountVoucherLinePaymode', 'VoucherReport']
 
@@ -35,6 +35,14 @@ class AccountVoucherSequence(ModelSingleton, ModelSQL, ModelView):
 
     voucher_sequence = fields.Property(fields.Many2One('ir.sequence',
         'Voucher Sequence', required=True,
+        domain=[('code', '=', 'account.voucher')]))
+
+class AccountVoucherSequencePayment(ModelSingleton, ModelSQL, ModelView):
+    'Account Voucher Sequence Payment'
+    __name__ = 'account.voucher.sequence_payment'
+
+    voucher_sequence_payment = fields.Property(fields.Many2One('ir.sequence',
+        'Voucher Sequence Payment', required=True,
         domain=[('code', '=', 'account.voucher')]))
 
 
@@ -150,10 +158,22 @@ class AccountVoucher(ModelSQL, ModelView):
     def set_number(self):
         Sequence = Pool().get('ir.sequence')
         AccountVoucherSequence = Pool().get('account.voucher.sequence')
-        sequence = AccountVoucherSequence(1)
-        self.write([self], {'number': Sequence.get_id(
-            sequence.voucher_sequence.id)})
-            
+        AccountVoucherSequencePayment = Pool().get('account.voucher.sequence_payment')
+        sequence_r = Sequence.search ([('code','=', 'account.voucher.receipt')])
+        sequence_p = Sequence.search([('code', '=', 'account.voucher.payment')])
+        for s in sequence_r:
+            s_receipt = s
+        for s in sequence_p:
+            s_payment = s
+        if self.voucher_type == 'receipt':
+            sequence_r = AccountVoucherSequence(1)
+            self.write([self], {'number': Sequence.get_id(
+                s_receipt.id)})
+        elif self.voucher_type == 'payment':
+            sequence_p = AccountVoucherSequencePayment(1)
+            self.write([self], {'number': Sequence.get_id(
+                s_payment.id)})
+
     @fields.depends('party','lines', 'pay_lines', 'lines_credits', 'lines_debits')
     def on_change_with_amount(self, name=None):
         amount = Decimal('0.0')
