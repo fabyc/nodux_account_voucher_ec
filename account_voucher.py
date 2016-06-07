@@ -150,11 +150,10 @@ class AccountVoucher(ModelSQL, ModelView):
     def set_number(self):
         Sequence = Pool().get('ir.sequence')
         AccountVoucherSequence = Pool().get('account.voucher.sequence')
-        if self.voucher_type == 'receipt':
-            sequence = AccountVoucherSequence(1)
-            self.write([self], {'number': Sequence.get_id(
-                sequence.voucher_sequence.id)})
-
+        sequence = AccountVoucherSequence(1)
+        self.write([self], {'number': Sequence.get_id(
+            sequence.voucher_sequence.id)})
+            
     @fields.depends('party','lines', 'pay_lines', 'lines_credits', 'lines_debits')
     def on_change_with_amount(self, name=None):
         amount = Decimal('0.0')
@@ -180,32 +179,6 @@ class AccountVoucher(ModelSQL, ModelView):
                 total += line.amount_unreconciled or Decimal('0.00')
         return total
 
-    """
-    @fields.depends('pay_lines','party')
-    def on_change_pay_lines(self):
-        res= {}
-        res['pay_lines']={}
-
-        if self.party:
-            name = self.party.name
-
-
-        if self.pay_lines:
-            for p_l in self.pay_lines:
-                print "La linea de pago ",p_l
-                if p_l.banco:
-                    result = {
-                        'pay_mode':p_l.pay_mode,
-                        'pay_amount':p_l.pay_amount,
-                        'banco':p_l.banco,
-                        'titular_cuenta': name,
-                         }
-                    res['pay_lines'].setdefault('add', []).append((0, result))
-
-        print "LO QUE SE VA A AGREGAR ", res
-
-        return res
-    """
     @fields.depends('lines', 'pay_lines')
     def on_change_with_amount_invoices(self, name=None):
         total = 0
