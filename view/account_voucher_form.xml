@@ -25,13 +25,13 @@ the full copyright notices and license terms. -->
     <field name="from_pay_invoice" invisible="1"/>
     <newline/>
     <notebook colspan="4">
-        <page string="Pay Mode Lines" id="pay_lines">
+        <page string="Pay Mode Lines" id="pay_lines" states="{'invisible': Eval('transfer', True)}">
             <field name="pay_lines" mode="tree" colspan="4"
                 view_ids="nodux_account_voucher_ec.pay_lines_view_tree,nodux_account_voucher_ec.pay_lines_view_form"/>
         </page>
     </notebook>
     <notebook colspan="4">
-        <page string="Voucher Lines" id="lines">
+        <page string="Voucher Lines" id="lines" states="{'invisible': Eval('transfer', True)}">
             <field name="lines" mode="tree" colspan="4"
                 view_ids="nodux_account_voucher_ec.lines_view_tree"/>
             <field name="lines_credits" mode="tree" colspan="4"
@@ -39,7 +39,7 @@ the full copyright notices and license terms. -->
             <field name="lines_debits" mode="tree" colspan="4"
                 view_ids="nodux_account_voucher_ec.lines_debits_view_tree"/>
         </page>
-        <page string="Other Info" id="info">
+        <page string="Other Info" id="info" states="{'invisible': Eval('transfer', True)}">
             <label name="company"/>
             <field name="company"/>
             <label name="move"/>
