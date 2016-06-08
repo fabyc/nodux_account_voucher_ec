@@ -21,7 +21,7 @@ except:
     print("Please install it...!")
 
 
-__all__ = ['AccountVoucherSequence', 'AccountVoucherPayMode', 'AccountVoucher',
+__all__ = ['AccountVoucherSequence', 'AccountVoucherSequencePayment', 'AccountVoucherPayMode', 'AccountVoucher',
     'AccountVoucherLine', 'AccountVoucherLineCredits',
     'AccountVoucherLineDebits', 'AccountVoucherLinePaymode', 'VoucherReport']
 
@@ -35,6 +35,14 @@ class AccountVoucherSequence(ModelSingleton, ModelSQL, ModelView):
 
     voucher_sequence = fields.Property(fields.Many2One('ir.sequence',
         'Voucher Sequence', required=True,
+        domain=[('code', '=', 'account.voucher')]))
+
+class AccountVoucherSequencePayment(ModelSingleton, ModelSQL, ModelView):
+    'Account Voucher Sequence Payment'
+    __name__ = 'account.voucher.sequence_payment'
+
+    voucher_sequence_payment = fields.Property(fields.Many2One('ir.sequence',
+        'Voucher Sequence Payment', required=True,
         domain=[('code', '=', 'account.voucher')]))
 
 
@@ -52,8 +60,10 @@ class AccountVoucher(ModelSQL, ModelView):
     _rec_name = 'number'
 
     number = fields.Char('Number', readonly=True, help="Voucher Number")
-    party = fields.Many2One('party.party', 'Party', required=True,
-        states=_STATES)
+    party = fields.Many2One('party.party', 'Party', states={
+                'required': ~Eval('active', True),
+                'readonly': In(Eval('state'), ['posted']),
+                })
     voucher_type = fields.Selection([
         ('payment', 'Payment'),
         ('receipt', 'Receipt'),
@@ -90,6 +100,10 @@ class AccountVoucher(ModelSQL, ModelView):
     from_pay_invoice = fields.Boolean('Voucher launched from Pay invoice')
     amount_to_pay_words = fields.Char('Amount to Pay (Words)',
             states={'readonly': True})
+
+    transfer = fields.Boolean('Realizar movimiento', help='Realizar movimiento de caja a bancos, o transferencia entre bancos',states={
+                'readonly': ~Eval('active', True),
+                })
 
     @classmethod
     def __setup__(cls):
@@ -150,10 +164,21 @@ class AccountVoucher(ModelSQL, ModelView):
     def set_number(self):
         Sequence = Pool().get('ir.sequence')
         AccountVoucherSequence = Pool().get('account.voucher.sequence')
+        AccountVoucherSequencePayment = Pool().get('account.voucher.sequence_payment')
+        sequence_r = Sequence.search ([('code','=', 'account.voucher.receipt')])
+        sequence_p = Sequence.search([('code', '=', 'account.voucher.payment')])
+        for s in sequence_r:
+            s_receipt = s
+        for s in sequence_p:
+            s_payment = s
         if self.voucher_type == 'receipt':
-            sequence = AccountVoucherSequence(1)
+            sequence_r = AccountVoucherSequence(1)
             self.write([self], {'number': Sequence.get_id(
-                sequence.voucher_sequence.id)})
+                s_receipt.id)})
+        elif self.voucher_type == 'payment':
+            sequence_p = AccountVoucherSequencePayment(1)
+            self.write([self], {'number': Sequence.get_id(
+                s_payment.id)})
 
     @fields.depends('party','lines', 'pay_lines', 'lines_credits', 'lines_debits')
     def on_change_with_amount(self, name=None):
@@ -180,32 +205,6 @@ class AccountVoucher(ModelSQL, ModelView):
                 total += line.amount_unreconciled or Decimal('0.00')
         return total
 
-    """
-    @fields.depends('pay_lines','party')
-    def on_change_pay_lines(self):
-        res= {}
-        res['pay_lines']={}
-
-        if self.party:
-            name = self.party.name
-
-
-        if self.pay_lines:
-            for p_l in self.pay_lines:
-                print "La linea de pago ",p_l
-                if p_l.banco:
-                    result = {
-                        'pay_mode':p_l.pay_mode,
-                        'pay_amount':p_l.pay_amount,
-                        'banco':p_l.banco,
-                        'titular_cuenta': name,
-                         }
-                    res['pay_lines'].setdefault('add', []).append((0, result))
-
-        print "LO QUE SE VA A AGREGAR ", res
-
-        return res
-    """
     @fields.depends('lines', 'pay_lines')
     def on_change_with_amount_invoices(self, name=None):
         total = 0
@@ -742,6 +741,7 @@ class VoucherReport(Report):
         localcontext['decimales'] = decimales
         localcontext['hora'] = hora.strftime('%H:%M:%S')
         localcontext['fecha'] = hora.strftime('%d/%m/%Y')
+        localcontext['transfer'] = 'false'
 
         new_objs = []
         for obj in objects:

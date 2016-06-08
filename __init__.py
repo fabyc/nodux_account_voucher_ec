@@ -13,6 +13,7 @@ def register():
         Move,
         Line,
         AccountVoucherSequence,
+        AccountVoucherSequencePayment,
         AccountVoucherPayMode,
         AccountVoucher,
         AccountVoucherLine,

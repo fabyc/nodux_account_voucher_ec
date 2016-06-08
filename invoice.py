@@ -43,20 +43,72 @@ class PayInvoice(Wizard):
             amount_to_pay = invoice.amount_to_pay
         line_to_pay = invoice.lines_to_pay
 
-        for l in line_to_pay:
-            if l.reconciliation == None:
-                line_to_pay = l
+        pagados = invoice.payment_lines
+        pagos = Decimal(0.00)
+        if pagados:
+            for p in pagados:
+                pagos = pagos + p.credit
+        to_pay = invoice.total_amount - pagos
+        if to_pay < 0:
+            to_pay = Decimal(0.00)
+        if len(line_to_pay) == 1:
+            for l in line_to_pay:
+                if l.reconciliation == None:
+                    line_to_pay = l
+                    if invoice.type == 'in_invoice':
+                        lines = {
+                            'name': invoice.number,
+                            'account': line_to_pay.account.id,
+                            'amount': Decimal('0.00'),
+                            'amount_original': invoice.total_amount,
+                            'amount_unreconciled': line_to_pay.credit,
+                            'line_type': line_type,
+                            'move_line': line_to_pay.id,
+                            'date': line_to_pay.date,
+                            'date_expire': line_to_pay.maturity_date,
+                            }
+                    else:
 
-                lines = {
-                    'name': invoice.number,
-                    'account': line_to_pay.account.id,
-                    'amount': Decimal('0.00'),
-                    'amount_original': invoice.total_amount,
-                    'amount_unreconciled': line_to_pay.debit,
-                    'line_type': line_type,
-                    'move_line': line_to_pay.id,
-                    'date': line_to_pay.date,
-                    'date_expire': line_to_pay.maturity_date,
-                    }
-                default['lines'].append(lines)
+                        lines = {
+                            'name': invoice.number,
+                            'account': line_to_pay.account.id,
+                            'amount': Decimal('0.00'),
+                            'amount_original': invoice.total_amount,
+                            'amount_unreconciled': to_pay,
+                            'line_type': line_type,
+                            'move_line': line_to_pay.id,
+                            'date': line_to_pay.date,
+                            'date_expire': line_to_pay.maturity_date,
+                            }
+                    default['lines'].append(lines)
+        else:
+            for l in line_to_pay:
+                if l.reconciliation == None:
+                    line_to_pay = l
+                    if invoice.type == 'in_invoice':
+                        lines = {
+                            'name': invoice.number,
+                            'account': line_to_pay.account.id,
+                            'amount': Decimal('0.00'),
+                            'amount_original': invoice.total_amount,
+                            'amount_unreconciled': line_to_pay.credit,
+                            'line_type': line_type,
+                            'move_line': line_to_pay.id,
+                            'date': line_to_pay.date,
+                            'date_expire': line_to_pay.maturity_date,
+                            }
+                    else:
+
+                        lines = {
+                            'name': invoice.number,
+                            'account': line_to_pay.account.id,
+                            'amount': Decimal('0.00'),
+                            'amount_original': invoice.total_amount,
+                            'amount_unreconciled': line_to_pay.credit,
+                            'line_type': line_type,
+                            'move_line': line_to_pay.id,
+                            'date': line_to_pay.date,
+                            'date_expire': line_to_pay.maturity_date,
+                            }
+                    default['lines'].append(lines)
         return default
