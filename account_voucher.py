@@ -102,7 +102,7 @@ class AccountVoucher(ModelSQL, ModelView):
             states={'readonly': True})
 
     transfer = fields.Boolean('Realizar movimiento', help='Realizar movimiento de caja a bancos, o transferencia entre bancos',states={
-                'readonly': ~Eval('active', True),
+                'readonly':In(Eval('state'), ['posted']),
                 })
 
     @classmethod
@@ -125,6 +125,10 @@ class AccountVoucher(ModelSQL, ModelView):
     @staticmethod
     def default_state():
         return 'draft'
+        
+    @staticmethod
+    def default_transfer():
+        return False
 
     @staticmethod
     def default_currency():
@@ -448,6 +452,8 @@ class AccountVoucher(ModelSQL, ModelView):
         Sale = pool.get('sale.sale')
         invoice_d = None
         sales = None
+        name = None
+        invoice = None
         for line in self.lines:
             original = line.amount_original
             unreconciled = line.amount_unreconciled
