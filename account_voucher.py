@@ -3,7 +3,7 @@
 #The COPYRIGHT file at the top level of this repository contains
 #the full copyright notices and license terms.
 from decimal import Decimal
-from trytond.model import ModelSingleton, ModelView, ModelSQL, fields
+from trytond.model import Workflow, ModelSingleton, ModelView, ModelSQL, fields
 from trytond.transaction import Transaction
 from trytond.pyson import Eval, In
 from trytond.pool import Pool
@@ -11,6 +11,7 @@ from trytond.report import Report
 import pytz
 from datetime import datetime,timedelta
 import time
+
 
 conversor = None
 try:
@@ -21,7 +22,7 @@ except:
     print("Please install it...!")
 
 
-__all__ = ['AccountVoucherSequence', 'AccountVoucherSequencePayment', 'AccountVoucherPayMode', 'AccountVoucher',
+__all__ = ['AccountVoucherSequence', 'AccountVoucherPayMode', 'AccountVoucher',
     'AccountVoucherLine', 'AccountVoucherLineCredits',
     'AccountVoucherLineDebits', 'AccountVoucherLinePaymode', 'VoucherReport']
 
@@ -33,18 +34,18 @@ class AccountVoucherSequence(ModelSingleton, ModelSQL, ModelView):
     'Account Voucher Sequence'
     __name__ = 'account.voucher.sequence'
 
-    voucher_sequence = fields.Property(fields.Many2One('ir.sequence',
-        'Voucher Sequence', required=True,
-        domain=[('code', '=', 'account.voucher')]))
-
-class AccountVoucherSequencePayment(ModelSingleton, ModelSQL, ModelView):
-    'Account Voucher Sequence Payment'
-    __name__ = 'account.voucher.sequence_payment'
-
-    voucher_sequence_payment = fields.Property(fields.Many2One('ir.sequence',
-        'Voucher Sequence Payment', required=True,
-        domain=[('code', '=', 'account.voucher')]))
-
+    voucher_payment_sequence = fields.Property(fields.Many2One('ir.sequence',
+        'Voucher Payment Sequence', required=True,
+        domain=[
+            ('code', '=', 'account.voucher.payment'),
+            ('company', 'in', [Eval('context', {}).get('company'), None]),
+            ]))
+    voucher_receipt_sequence = fields.Property(fields.Many2One('ir.sequence',
+        'Voucher Receipt Sequence', required=True,
+        domain=[
+            ('code', '=', 'account.voucher.receipt'),
+            ('company', 'in', [Eval('context', {}).get('company'), None]),
+            ]))
 
 class AccountVoucherPayMode(ModelSQL, ModelView):
     'Forma de Pago'
@@ -89,6 +90,7 @@ class AccountVoucher(ModelSQL, ModelView):
     state = fields.Selection([
         ('draft', 'Draft'),
         ('posted', 'Posted'),
+        ('canceled', 'Canceled'),
         ], 'State', select=True, readonly=True)
     amount = fields.Function(fields.Numeric('Payment', digits=(16, 2)),
         'on_change_with_amount')
@@ -97,6 +99,10 @@ class AccountVoucher(ModelSQL, ModelView):
     amount_invoices = fields.Function(fields.Numeric('Invoices',
         digits=(16, 2)), 'on_change_with_amount_invoices')
     move = fields.Many2One('account.move', 'Move', readonly=True)
+    move_canceled = fields.Many2One('account.move', 'Move Canceled',
+        readonly=True, states={
+            'invisible': ~Eval('move_canceled'),
+            })
     from_pay_invoice = fields.Boolean('Voucher launched from Pay invoice')
     amount_to_pay_words = fields.Char('Amount to Pay (Words)',
             states={'readonly': True})
@@ -112,10 +118,15 @@ class AccountVoucher(ModelSQL, ModelView):
             'missing_pay_lines': 'You have to enter pay mode lines!',
             'delete_voucher': 'You can not delete a voucher that is posted!',
             'payment_advanced' :u'¿Desea generar un anticipo?',
+
         })
+
         cls._buttons.update({
                 'post': {
-                    'invisible': Eval('state') == 'posted',
+                    'invisible': Eval('state') != 'draft',
+                    },
+                'cancel':{
+                    'invisible': Eval('state') != 'posted',
                     },
                 })
         cls._order.insert(0, ('date', 'DESC'))
@@ -125,7 +136,7 @@ class AccountVoucher(ModelSQL, ModelView):
     @staticmethod
     def default_state():
         return 'draft'
-        
+
     @staticmethod
     def default_transfer():
         return False
@@ -168,21 +179,14 @@ class AccountVoucher(ModelSQL, ModelView):
     def set_number(self):
         Sequence = Pool().get('ir.sequence')
         AccountVoucherSequence = Pool().get('account.voucher.sequence')
-        AccountVoucherSequencePayment = Pool().get('account.voucher.sequence_payment')
-        sequence_r = Sequence.search ([('code','=', 'account.voucher.receipt')])
-        sequence_p = Sequence.search([('code', '=', 'account.voucher.payment')])
-        for s in sequence_r:
-            s_receipt = s
-        for s in sequence_p:
-            s_payment = s
-        if self.voucher_type == 'receipt':
-            sequence_r = AccountVoucherSequence(1)
+
+        sequence = AccountVoucherSequence(1)
+        if self.voucher_type == 'payment':
             self.write([self], {'number': Sequence.get_id(
-                s_receipt.id)})
-        elif self.voucher_type == 'payment':
-            sequence_p = AccountVoucherSequencePayment(1)
+                sequence.voucher_payment_sequence.id)})
+        else:
             self.write([self], {'number': Sequence.get_id(
-                s_payment.id)})
+                sequence.voucher_receipt_sequence.id)})
 
     @fields.depends('party','lines', 'pay_lines', 'lines_credits', 'lines_debits')
     def on_change_with_amount(self, name=None):
@@ -224,33 +228,28 @@ class AccountVoucher(ModelSQL, ModelView):
         Invoice = pool.get('account.invoice')
         MoveLine = pool.get('account.move.line')
         InvoiceAccountMoveLine = pool.get('account.invoice-account.move.line')
+        Currency = pool.get('currency.currency')
+        PaymentLine = pool.get('account.voucher.line')
+        PaymentLineCredits = pool.get('account.voucher.line.credits')
+        PaymentLineDebits = pool.get('account.voucher.line.debits')
 
         if self.from_pay_invoice:
             # The voucher was launched from Invoice's PayInvoice wizard:
             # 'lines', 'lines_credits', 'lines_debits' should be set there
             return {}
 
-        res = {}
-        res['lines'] = {}
-        res['lines_credits'] = {}
-        res['lines_debits'] = {}
+        lines = []
+        lines_credits = []
+        lines_debits = []
 
         if self.lines:
-            res['lines']['remove'] = [x['id'] for x in self.lines]
-        if self.lines_credits:
-            res['lines_credits']['remove'] = \
-                [x['id'] for x in self.lines_credits]
-        if self.lines_debits:
-            res['lines_debits']['remove'] = \
-                [x['id'] for x in self.lines_debits]
-
-        if not self.party:
-            return res
+            return
 
         if self.voucher_type == 'receipt':
             account_types = ['receivable']
         else:
             account_types = ['payable']
+
         move_lines = MoveLine.search([
             ('party', '=', self.party),
             ('account.kind', 'in', account_types),
@@ -273,37 +272,43 @@ class AccountVoucher(ModelSQL, ModelView):
                 amount = line.debit
                 line_type = 'dr'
 
+            amount_residual = abs(line.amount_residual)
             name = ''
             model = str(line.origin)
             if model[:model.find(',')] == 'account.invoice':
-                name = Invoice(line.origin.id).number
-            payment_line = {
-                'name': name,
-                'account': line.account.id,
-                'amount': Decimal('0.00'),
-                'amount_original': amount,
-                'amount_unreconciled': abs(line.amount_residual),
-                'line_type': line_type,
-                'move_line': line.id,
-                'date': line.date,
-                'date_expire': line.maturity_date,
-            }
+                invoice = Invoice(line.origin.id)
+                if invoice.type[0:3] == 'out':
+                    name = invoice.number
+                else:
+                    name = invoice.reference
+            payment_line = AccountVoucherLine()
+            payment_line.name = name
+            payment_line.account = line.account.id
+            payment_line.amount = Decimal('0.00')
+            payment_line.amount_original = amount
+            payment_line.amount_unreconciled = amount_residual
+            payment_line.line_type = line_type
+            payment_line.move_line = line.id
+            payment_line.date = line.date
+            payment_line.date_expire = line.maturity_date
+
             if line.credit and self.voucher_type == 'receipt':
-                res['lines_credits'].setdefault('add', []).append((0,
-                    payment_line))
+                lines_credits.append(payment_line)
             elif line.debit and self.voucher_type == 'payment':
-                res['lines_debits'].setdefault('add', []).append((0,
-                    payment_line))
+                lines_debits.append(payment_line)
             else:
-                res['lines'].setdefault('add', []).append((0, payment_line))
-        return res
+                lines.append(payment_line)
+
+        self.lines = lines
+        self.lines_credits = lines_credits
+        self.lines_debits = lines_debits
 
     @classmethod
     def delete(cls, vouchers):
         if not vouchers:
             return True
         for voucher in vouchers:
-            if voucher.state == 'posted':
+            if voucher.state != 'draft':
                 cls.raise_user_error('delete_voucher')
         return super(AccountVoucher, cls).delete(vouchers)
 
@@ -516,6 +521,67 @@ class AccountVoucher(ModelSQL, ModelView):
 
         return True
 
+    def create_cancel_move(self):
+        pool = Pool()
+        Move = pool.get('account.move')
+        MoveLine = pool.get('account.move.line')
+        Period = pool.get('account.period')
+        Reconciliation = pool.get('account.move.reconciliation')
+        Invoice = pool.get('account.invoice')
+        Date = pool.get('ir.date')
+
+        canceled_date = Date.today()
+        canceled_move, = Move.copy([self.move], {
+                'period': Period.find(self.company.id, date=canceled_date),
+                'date': canceled_date,
+            })
+        self.write([self], {
+                'move_canceled': canceled_move.id,
+                })
+
+        for line in canceled_move.lines:
+            aux = line.debit
+            line.debit = line.credit
+            line.credit = aux
+            line.save()
+
+        Move.post([self.move_canceled])
+
+        reconciliations = [x.reconciliation for x in self.move.lines
+                            if x.reconciliation]
+        with Transaction().set_user(0, set_context=True):
+            if reconciliations:
+                Reconciliation.delete(reconciliations)
+
+        for line in self.lines:
+            origin = str(line.move_line.origin)
+            origin = origin[:origin.find(',')]
+            if origin not in ['account.invoice',
+                    'account.voucher']:
+                continue
+            if line.amount == Decimal("0.00"):
+                continue
+            invoice = Invoice(line.move_line.origin.id)
+            for move_line in self.move_canceled.lines:
+                if move_line.description == 'advance':
+                    continue
+                if move_line.description == invoice.number:
+                    Invoice.write([invoice], {
+                        'payment_lines': [('add', [move_line.id])],
+                        })
+
+        lines_to_reconcile = []
+        for line in self.move.lines:
+            if line.account.reconcile:
+                lines_to_reconcile.append(line)
+        for cancel_line in canceled_move.lines:
+            if cancel_line.account.reconcile:
+                lines_to_reconcile.append(cancel_line)
+
+        if lines_to_reconcile:
+            MoveLine.reconcile(lines_to_reconcile)
+
+        return True
 
     def prepare_postdated_lines(self):
         pool = Pool()
@@ -596,7 +662,7 @@ class AccountVoucher(ModelSQL, ModelView):
     def post(cls, vouchers):
         pool = Pool()
         module = None
-        Module = pool.get('ir.module.module')
+        Module = pool.get('ir.module')
         module = Module.search([('name', '=', 'nodux_account_postdated_check'), ('state', '=', 'installed')])
         for voucher in vouchers:
             voucher.get_value_lines()
@@ -609,6 +675,25 @@ class AccountVoucher(ModelSQL, ModelView):
                 voucher.create_postdated_check(postdated_lines)
         cls.write(vouchers, {'state': 'posted'})
 
+    @classmethod
+    @ModelView.button
+    def cancel(cls, vouchers):
+        for voucher in vouchers:
+            voucher.create_cancel_move()
+        cls.write(vouchers, {'state': 'canceled'})
+
+    @classmethod
+    def view_attributes(cls):
+        return super(AccountVoucher, cls).view_attributes() + [
+            ('//page[@id="pay_lines"]', 'states', {
+                    'invisible': Eval('transfer'),
+                    }),
+            ('//page[@id="lines"]', 'states', {
+                    'invisible': Eval('transfer'),
+                    }),
+            ('//page[@id="info"]', 'states', {
+                    'invisible': Eval('transfer'),
+                    })]
 
 class AccountVoucherLine(ModelSQL, ModelView):
     'Account Voucher Line'
@@ -703,7 +788,6 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
 
     @fields.depends('_parent_voucher.party', 'pay_mode')
     def on_change_pay_mode(self):
-        result = {}
         if self.voucher:
             if self.pay_mode:
                 name_mode = self.pay_mode.name
@@ -714,12 +798,10 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
                         titular_cuenta = party
                     else:
                         titular_cuenta = ""
-                    result['titular_cuenta'] = titular_cuenta
+                    self.titular_cuenta = titular_cuenta
         else:
             titular_cuenta = ""
-            result['titular_cuenta'] = titular_cuenta
-
-        return result
+            self.titular_cuenta = titular_cuenta
 
 
 class VoucherReport(Report):
@@ -727,12 +809,19 @@ class VoucherReport(Report):
     __name__ = 'account.voucher.report'
 
     @classmethod
-    def parse(cls, report, objects, data, localcontext=None):
+    def get_context(cls, records, data):
         Company = Pool().get('company.company')
         company_id = Transaction().context.get('company')
         company = Company(company_id)
-        for obj in objects:
-            d = str(obj.amount)
+
+        context = Transaction().context
+
+        report_context = super(InvoiceReport, cls).get_context(
+            records, data)
+
+        voucher = records[0]
+        if voucher.amount:
+            d = str(voucher.amount)
             decimales = d[-2:]
             if decimales[0] == '.':
                  decimales = decimales[1]+'0'
@@ -743,16 +832,16 @@ class VoucherReport(Report):
             hora = datetime.astimezone(dt.replace(tzinfo=pytz.utc), timezone)
 
 
-        localcontext['company'] = company
-        localcontext['decimales'] = decimales
-        localcontext['hora'] = hora.strftime('%H:%M:%S')
-        localcontext['fecha'] = hora.strftime('%d/%m/%Y')
-        localcontext['transfer'] = 'false'
+        report_context['company'] = company
+        report_context['decimales'] = decimales
+        report_context['hora'] = hora.strftime('%H:%M:%S')
+        report_context['fecha'] = hora.strftime('%d/%m/%Y')
+        report_context['transfer'] = 'false'
 
         new_objs = []
         for obj in objects:
             if obj.amount_to_pay and conversor and not obj.amount_to_pay_words:
                 obj.amount_to_pay_words = obj.get_amount2words(obj.amount_to_pay)
             new_objs.append(obj)
-        return super(VoucherReport, cls).parse(report,
-                new_objs, data, localcontext)
+
+        return report_context

@@ -4,7 +4,6 @@ The COPYRIGHT file at the top level of this repository contains
 the full copyright notices and license terms. -->
 <tryton>
     <data>
-
         <!--Report Voucher-->
         <record model="ir.action.report" id="report_account_voucher">
             <field name="name">Comprobante Ingreso/Egreso</field>
@@ -18,40 +17,51 @@ the full copyright notices and license terms. -->
             <field name="action" ref="report_account_voucher"/>
         </record>
 
-        <!-- Sequences for Account Voucher -->
-        <record id="seq_type_account_voucher" model="ir.sequence.type">
-            <field name="name">Account Voucher Receipt</field>
-            <field name="code">account.voucher.receipt</field>
-        </record>
-        <record id="seq_account_voucher" model="ir.sequence">
-            <field name="name">Account Voucher Receipt</field>
-            <field name="code">account.voucher.receipt</field>
-            <field name="prefix">${year}-</field>
-            <field name="padding">3</field>
-        </record>
-
-        <record model="ir.property" id="property_account_voucher_sequence">
-            <field name="field"
-                search="[('model.model', '=', 'account.voucher.sequence'), ('name', '=', 'voucher_sequence')]"/>
-            <field name="value" eval="'ir.sequence,' + str(ref('seq_account_voucher'))"/>
-        </record>
-
-        <!-- Sequences for Account Voucher -->
-        <record id="seq_type_account_voucher_p" model="ir.sequence.type">
+        <!-- Sequences for Account Voucher Payment -->
+        <record id="seq_type_account_voucher_payment" model="ir.sequence.type">
             <field name="name">Account Voucher Payment</field>
             <field name="code">account.voucher.payment</field>
         </record>
-        <record id="seq_account_voucher_p" model="ir.sequence">
+        <record model="ir.sequence.type-res.group"
+            id="seq_type_account_voucher_payment_group_admin">
+            <field name="sequence_type" ref="seq_type_account_voucher_payment"/>
+            <field name="group" ref="res.group_admin"/>
+        </record>
+        <record model="ir.sequence.type-res.group"
+            id="seq_type_account_voucher_payment_group_account_admin">
+            <field name="sequence_type" ref="seq_type_account_voucher_payment"/>
+            <field name="group" ref="account.group_account_admin"/>
+        </record>
+
+        <record id="seq_account_voucher_payment" model="ir.sequence">
             <field name="name">Account Voucher Payment</field>
             <field name="code">account.voucher.payment</field>
-            <field name="prefix">${year}-</field>
+            <field name="prefix">${year}/</field>
             <field name="padding">3</field>
         </record>
 
-        <record model="ir.property" id="property_account_voucher_sequence_p">
+        <record model="ir.property" id="property_account_voucher_payment_sequence">
             <field name="field"
-                search="[('model.model', '=', 'account.voucher.sequence_payment'), ('name', '=', 'voucher_sequence_payment')]"/>
-            <field name="value" eval="'ir.sequence,' + str(ref('seq_account_voucher_p'))"/>
+                search="[('model.model', '=', 'account.voucher.sequence'), ('name', '=', 'voucher_payment_sequence')]"/>
+            <field name="value" eval="'ir.sequence,' + str(ref('seq_account_voucher_payment'))"/>
+        </record>
+
+        <!-- Sequences for Account Voucher Receipt -->
+        <record id="seq_type_account_voucher_receipt" model="ir.sequence.type">
+            <field name="name">Account Voucher Receipt</field>
+            <field name="code">account.voucher.receipt</field>
+        </record>
+        <record id="seq_account_voucher_receipt" model="ir.sequence">
+            <field name="name">Account Voucher Receipt</field>
+            <field name="code">account.voucher.receipt</field>
+            <field name="prefix">REC ${year}/</field>
+            <field name="padding">6</field>
+        </record>
+
+        <record model="ir.property" id="property_account_voucher_receipt_sequence">
+            <field name="field"
+                search="[('model.model', '=', 'account.voucher.sequence'), ('name', '=', 'voucher_receipt_sequence')]"/>
+            <field name="value" eval="'ir.sequence,' + str(ref('seq_account_voucher_receipt'))"/>
         </record>
 
 <!-- Account Voucher -->
@@ -95,8 +105,8 @@ the full copyright notices and license terms. -->
         <record model="ir.action.act_window" id="act_voucher_receipt_form">
             <field name="name">Receipts</field>
             <field name="res_model">account.voucher</field>
-            <field name="domain">[('voucher_type', '=', 'receipt')]</field>
-            <field name="context">{'voucher_type': 'receipt'}</field>
+            <field name="domain" eval="[('voucher_type', '=', 'receipt')]" pyson="1"/>
+            <field name="context" eval="{'voucher_type': 'receipt'}" pyson="1"/>
         </record>
         <record model="ir.action.act_window.view" id="act_voucher_receipt_form_view1">
             <field name="sequence" eval="10"/>
@@ -114,8 +124,8 @@ the full copyright notices and license terms. -->
         <record model="ir.action.act_window" id="act_voucher_payment_form">
             <field name="name">Payments</field>
             <field name="res_model">account.voucher</field>
-            <field name="domain">[('voucher_type', '=', 'payment')]</field>
-            <field name="context">{'voucher_type': 'payment'}</field>
+            <field name="domain" eval="[('voucher_type', '=', 'payment')]" pyson="1"/>
+            <field name="context" eval="{'voucher_type': 'payment'}" pyson="1"/>
         </record>
         <record model="ir.action.act_window.view" id="act_voucher_payment_form_view1">
             <field name="sequence" eval="10"/>
