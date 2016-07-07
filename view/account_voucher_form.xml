@@ -23,6 +23,7 @@ the full copyright notices and license terms. -->
     <field name="currency"/>
     <field name="voucher_type"/>
     <field name="from_pay_invoice" invisible="1"/>
+    <field name="transfer" invisible="1"/>
     <newline/>
     <notebook colspan="4">
         <page string="Pay Mode Lines" id="pay_lines" states="{'invisible': Eval('transfer', True)}">
