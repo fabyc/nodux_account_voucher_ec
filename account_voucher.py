@@ -701,7 +701,7 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
     def __setup__(cls):
         super(AccountVoucherLinePaymode, cls).__setup__()
 
-    @fields.depends('_parent_voucher.party', 'pay_mode')
+    @fields.depends('_parent_voucher.party', '_parent_voucher.voucher_type', '_parent_voucher.company', 'pay_mode')
     def on_change_pay_mode(self):
         result = {}
         if self.voucher:
@@ -709,11 +709,17 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
                 name_mode = self.pay_mode.name
                 name = name_mode.lower()
                 if 'cheque' in name:
-                    if self.voucher.party:
-                        titular_cuenta = self.voucher.party.name
+                    if self.voucher.voucher_type == 'receipt':
+                        if self.voucher.party:
+                            titular_cuenta = self.voucher.party.name
+                        else:
+                            titular_cuenta = ""
+                        result['titular_cuenta'] = titular_cuenta
                     else:
-                        titular_cuenta = ""
-                    result['titular_cuenta'] = titular_cuenta
+                        if self.voucher.company:
+                            result['titular_cuenta'] = self.voucher.company.party.name
+                        else:
+                            result['titular_cuenta'] = ""
         else:
             titular_cuenta = ""
             result['titular_cuenta'] = titular_cuenta
