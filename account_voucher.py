@@ -125,7 +125,7 @@ class AccountVoucher(ModelSQL, ModelView):
     @staticmethod
     def default_state():
         return 'draft'
-        
+
     @staticmethod
     def default_transfer():
         return False
@@ -708,10 +708,9 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
             if self.pay_mode:
                 name_mode = self.pay_mode.name
                 name = name_mode.lower()
-                party = self.voucher.party.name
                 if 'cheque' in name:
-                    if party:
-                        titular_cuenta = party
+                    if self.voucher.party:
+                        titular_cuenta = self.voucher.party.name
                     else:
                         titular_cuenta = ""
                     result['titular_cuenta'] = titular_cuenta
