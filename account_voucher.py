@@ -812,7 +812,7 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
                 if self.banco:
                     name_mode = self.pay_mode.name
                     name = name_mode.lower()
-                    if 'deposito' in name:
+                    if ('deposito' in name) or (u'depósito' in name) or ('transferencia' in name):
                         if self.banco.account_expense:
                             banco = self.banco.account_expense.id
                         else:
