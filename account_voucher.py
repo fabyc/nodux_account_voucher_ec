@@ -89,6 +89,7 @@ class AccountVoucher(ModelSQL, ModelView):
     state = fields.Selection([
         ('draft', 'Draft'),
         ('posted', 'Posted'),
+        ('canceled', 'Canceled'),
         ], 'State', select=True, readonly=True)
     amount = fields.Function(fields.Numeric('Payment', digits=(16, 2)),
         'on_change_with_amount')
@@ -97,6 +98,10 @@ class AccountVoucher(ModelSQL, ModelView):
     amount_invoices = fields.Function(fields.Numeric('Invoices',
         digits=(16, 2)), 'on_change_with_amount_invoices')
     move = fields.Many2One('account.move', 'Move', readonly=True)
+    move_canceled = fields.Many2One('account.move', 'Move Canceled',
+        readonly=True, states={
+            'invisible': ~Eval('move_canceled'),
+            })
     from_pay_invoice = fields.Boolean('Voucher launched from Pay invoice')
     amount_to_pay_words = fields.Char('Amount to Pay (Words)',
             states={'readonly': True})
@@ -115,12 +120,14 @@ class AccountVoucher(ModelSQL, ModelView):
         })
         cls._buttons.update({
                 'post': {
-                    'invisible': Eval('state') == 'posted',
+                    'invisible': Eval('state') != 'draft',
+                    },
+                'cancel':{
+                    'invisible': Eval('state') != 'posted',
                     },
                 })
         cls._order.insert(0, ('date', 'DESC'))
         cls._order.insert(1, ('number', 'DESC'))
-
 
     @staticmethod
     def default_state():
@@ -306,6 +313,65 @@ class AccountVoucher(ModelSQL, ModelView):
             if voucher.state == 'posted':
                 cls.raise_user_error('delete_voucher')
         return super(AccountVoucher, cls).delete(vouchers)
+
+    def create_cancel_move(self):
+        pool = Pool()
+        Move = pool.get('account.move')
+        MoveLine = pool.get('account.move.line')
+        Period = pool.get('account.period')
+        Reconciliation = pool.get('account.move.reconciliation')
+        Invoice = pool.get('account.invoice')
+        Date = pool.get('ir.date')
+
+        canceled_date = Date.today()
+        canceled_move, = Move.copy([self.move], {
+                'period': Period.find(self.company.id, date=canceled_date),
+                'date': canceled_date,
+            })
+        self.write([self], {
+                'move_canceled': canceled_move.id,
+                })
+
+        for line in canceled_move.lines:
+            aux = line.debit
+            line.debit = line.credit
+            line.credit = aux
+            line.save()
+
+        Move.post([self.move_canceled])
+
+        reconciliations = [x.reconciliation for x in self.move.lines
+                            if x.reconciliation]
+        with Transaction().set_user(0, set_context=True):
+            if reconciliations:
+                Reconciliation.delete(reconciliations)
+        for line in self.lines:
+            origin = str(line.move_line.origin)
+            origin = origin[:origin.find(',')]
+            if origin not in ['account.invoice',
+                    'account.voucher']:
+                continue
+            if line.amount == Decimal("0.00"):
+                continue
+            invoice = Invoice(line.move_line.origin.id)
+            for move_line in self.move_canceled.lines:
+                if move_line.description == 'advance':
+                    continue
+                if move_line.description == invoice.number:
+                    Invoice.write([invoice], {
+                        'payment_lines': [('add', [move_line.id])],
+                        })
+        lines_to_reconcile = []
+        for line in self.move.lines:
+            if line.account.reconcile:
+                #if line.reconciliations != None:
+                lines_to_reconcile.append(line)
+        for cancel_line in canceled_move.lines:
+            if cancel_line.account.reconcile:
+                lines_to_reconcile.append(cancel_line)
+        if lines_to_reconcile:
+            MoveLine.reconcile(lines_to_reconcile)
+        return True
 
     def prepare_move_lines(self):
         pool = Pool()
@@ -534,7 +600,10 @@ class AccountVoucher(ModelSQL, ModelView):
                     'name': line.voucher.number,
                     'amount': line.pay_amount,
                     'account': line.pay_mode.account.id,
-                    'date': line.fecha,
+                    'date_expire': line.fecha,
+                    'date': self.date,
+                    'num_check' : line.numero_doc,
+                    'num_account' : line.cuenta_tercero,
                 })
 
         return postdated_lines
@@ -609,6 +678,12 @@ class AccountVoucher(ModelSQL, ModelView):
                 voucher.create_postdated_check(postdated_lines)
         cls.write(vouchers, {'state': 'posted'})
 
+    @classmethod
+    @ModelView.button
+    def cancel(cls, vouchers):
+        for voucher in vouchers:
+            voucher.create_cancel_move()
+        cls.write(vouchers, {'state': 'canceled'})
 
 class AccountVoucherLine(ModelSQL, ModelView):
     'Account Voucher Line'
@@ -726,6 +801,30 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
 
         return result
 
+    @fields.depends('_parent_voucher.company', 'pay_mode', 'banco')
+    def on_change_banco(self):
+        result = {}
+        Account = Pool().get('account.account')
+        accounts = Account.search([('kind', '=', 'other')])
+        default = self.pay_mode
+        if self.voucher:
+            if self.pay_mode:
+                if self.banco:
+                    name_mode = self.pay_mode.name
+                    name = name_mode.lower()
+                    if 'deposito' in name:
+                        banco = self.banco.party.name
+                        banco = banco.split(' ')
+                        for a in accounts:
+                            if banco[1] in a.name:
+                                self.pay_mode.write([self.pay_mode],{ 'account': a.id})
+                                result['pay_mode.account'] = default
+                            else:
+                                result['pay_mode.account'] = default
+        else:
+            result['pay_mode'] = default
+
+        return result
 
 class VoucherReport(Report):
     'Voucher Report'
