@@ -7,6 +7,7 @@ from .move import *
 from .account_voucher import *
 from .invoice import *
 from .sale import *
+from .bank import *
 
 def register():
     Pool.register(
@@ -21,6 +22,7 @@ def register():
         AccountVoucherLineDebits,
         AccountVoucherLinePaymode,
         Sale,
+        Bank,
         module='nodux_account_voucher_ec', type_='model')
     Pool.register(
         PayInvoice,

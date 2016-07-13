@@ -801,29 +801,28 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
 
         return result
 
-    @fields.depends('_parent_voucher.company', 'pay_mode', 'banco')
+    @fields.depends('_parent_voucher.party','pay_mode', 'banco')
     def on_change_banco(self):
         result = {}
         Account = Pool().get('account.account')
         accounts = Account.search([('kind', '=', 'other')])
-        default = self.pay_mode
+        default = self.pay_mode.account.id
         if self.voucher:
             if self.pay_mode:
                 if self.banco:
                     name_mode = self.pay_mode.name
                     name = name_mode.lower()
                     if 'deposito' in name:
-                        banco = self.banco.party.name
-                        banco = banco.split(' ')
-                        for a in accounts:
-                            if banco[1] in a.name:
-                                self.pay_mode.write([self.pay_mode],{ 'account': a.id})
-                                result['pay_mode.account'] = default
-                            else:
-                                result['pay_mode.account'] = default
-        else:
-            result['pay_mode'] = default
-
+                        if self.banco.account_expense:
+                            banco = self.banco.account_expense.id
+                        else:
+                            self.raise_user_error('No ha configurado la cuenta de Bancos')
+                        self.banco.account_expense = banco
+                        result['pay_mode.account'] = banco
+                    else:
+                        self.banco.account_expense = default
+                        result['self.pay_mode.account'] = default
+        print "El resultado ", result
         return result
 
 class VoucherReport(Report):
