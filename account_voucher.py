@@ -53,6 +53,11 @@ class AccountVoucherPayMode(ModelSQL, ModelView):
     name = fields.Char('Name')
     account = fields.Many2One('account.account', 'Account')
 
+    def change_account(self, banco):
+        res= {}
+        res[self.account] = banco
+        #self.write([self],{'account': banco})
+        return res
 
 class AccountVoucher(ModelSQL, ModelView):
     'Account Voucher'
@@ -806,23 +811,22 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
         result = {}
         Account = Pool().get('account.account')
         accounts = Account.search([('kind', '=', 'other')])
-        default = self.pay_mode.account.id
+        PayMode = Pool().get('account.voucher.paymode')
+
         if self.voucher:
             if self.pay_mode:
+                default = self.pay_mode.account.id
+                paymode= PayMode(self.pay_mode)
                 if self.banco:
-                    name_mode = self.pay_mode.name
-                    name = name_mode.lower()
+                    name = paymode.name.lower()
                     if ('deposito' in name) or (u'depósito' in name) or ('transferencia' in name):
                         if self.banco.account_expense:
                             banco = self.banco.account_expense.id
                         else:
-                            self.raise_user_error('No ha configurado la cuenta de Bancos')
-                        self.banco.account_expense = banco
-                        result['pay_mode.account'] = banco
+                            self.raise_user_error('No ha configurado la cuenta contable de Bancos')
+                        result['paymode.account'] = banco
                     else:
-                        self.banco.account_expense = default
-                        result['self.pay_mode.account'] = default
-        print "El resultado ", result
+                        result['paymode.account'] = default
         return result
 
 class VoucherReport(Report):
@@ -844,7 +848,6 @@ class VoucherReport(Report):
             timezone = pytz.timezone(company.timezone)
             dt = datetime.now()
             hora = datetime.astimezone(dt.replace(tzinfo=pytz.utc), timezone)
-
 
         localcontext['company'] = company
         localcontext['decimales'] = decimales
