@@ -29,4 +29,6 @@ def register():
         module='nodux_account_voucher_ec', type_='wizard')
     Pool.register(
         VoucherReport,
+        PrintMove,
+        PrintCheck,
         module='nodux_account_voucher_ec', type_='report')

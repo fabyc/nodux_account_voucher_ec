@@ -58,6 +58,11 @@ msgctxt "field:account.voucher,date:"
 msgid "Date"
 msgstr "Fecha"
 
+#, fuzzy
+msgctxt "field:account.voucher,description:"
+msgid "Description"
+msgstr "Descripción"
+
 msgctxt "field:account.voucher,from_pay_invoice:"
 msgid "Voucher launched from Pay invoice"
 msgstr "Comprobante lanzado desde Pagar en Factura"
@@ -514,6 +519,14 @@ msgctxt "model:ir.action,name:act_voucher_receipt_form"
 msgid "Receipts"
 msgstr "Comprobante de ingreso"
 
+msgctxt "model:ir.action,name:print_check"
+msgid "Imprimir Asiento"
+msgstr ""
+
+msgctxt "model:ir.action,name:print_move"
+msgid "Imprimir Asiento"
+msgstr ""
+
 msgctxt "model:ir.action,name:report_account_voucher"
 msgid "Comprobante Ingreso/Egreso"
 msgstr "Comprobante Ingreso/Egreso"
@@ -523,7 +536,7 @@ msgid "Select Invoices to receive/pay"
 msgstr "Seleccione facturas a cobrar/pagar"
 
 msgctxt "model:ir.sequence,name:seq_account_voucher"
-msgid "Comprobante contable"
+msgid "Account Voucher Receipt"
 msgstr "Comprobante contable"
 
 msgctxt "model:ir.sequence,name:seq_account_voucher_p"
@@ -531,7 +544,7 @@ msgid "Account Voucher Payment"
 msgstr "Comprobante de egreso"
 
 msgctxt "model:ir.sequence.type,name:seq_type_account_voucher"
-msgid "Comprobante contable"
+msgid "Account Voucher Receipt"
 msgstr "Comprobante contable"
 
 msgctxt "model:ir.sequence.type,name:seq_type_account_voucher_p"
@@ -553,6 +566,116 @@ msgstr "Comprobante  de Ingreso"
 msgctxt "model:ir.ui.menu,name:menu_vouchers"
 msgid "Voucher"
 msgstr "Comprobantes"
+
+msgctxt "odt:account.voucher.print_check:"
+msgid ","
+msgstr ","
+
+msgctxt "odt:account.voucher.print_check:"
+msgid "-"
+msgstr "-"
+
+msgctxt "odt:account.voucher.print_check:"
+msgid "/100 x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x."
+msgstr ""
+
+msgctxt "odt:account.voucher.print_check:"
+msgid "Impreso:"
+msgstr "Impreso:"
+
+msgctxt "odt:account.voucher.print_check:"
+msgid "Loja,"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_check:"
+msgid ""
+"x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. x. "
+"x. x. x. x. x. x. x. x. x. x. x. x. x."
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid ","
+msgstr ","
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "-"
+msgstr "-"
+
+msgctxt "odt:account.voucher.print_move:"
+msgid ":"
+msgstr ":"
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Analista Contable"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Asiento No."
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Beneficiario"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Beneficiario:"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "C.I./RUC:"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Crédito"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Cuenta"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Código"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Doc."
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Domicilio:"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Débito"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Elaborado por:"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Lugar y Fecha:"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "No. Doc."
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Nota:"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Referencia"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Telf.:"
+msgstr ""
+
+msgctxt "odt:account.voucher.print_move:"
+msgid "Totales $"
+msgstr ""
 
 msgctxt "odt:account.voucher.report:"
 msgid ","

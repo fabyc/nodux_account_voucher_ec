@@ -4,6 +4,35 @@ The COPYRIGHT file at the top level of this repository contains
 the full copyright notices and license terms. -->
 <tryton>
     <data>
+        <!--Print Move-->
+        <record model="ir.action.report" id='print_move'>
+            <field name="name">Imprimir Asiento</field>
+            <field name="model">account.voucher</field>
+            <field name="report_name">account.voucher.print_move</field>
+            <field name="report">nodux_account_voucher_ec/move.odt</field>
+            <field name="style"></field>
+        </record>
+
+       <record model="ir.action.keyword" id="report_move_keyword">
+           <field name="keyword">form_print</field>
+           <field name="model">account.voucher,-1</field>
+           <field name="action" ref="print_move"/>
+       </record>
+
+       <!--Print Check-->
+       <record model="ir.action.report" id='print_check'>
+           <field name="name">Imprimir Cheque</field>
+           <field name="model">account.voucher</field>
+           <field name="report_name">account.voucher.print_check</field>
+           <field name="report">nodux_account_voucher_ec/check.odt</field>
+           <field name="style"></field>
+       </record>
+
+      <record model="ir.action.keyword" id="report_check_keyword">
+          <field name="keyword">form_print</field>
+          <field name="model">account.voucher,-1</field>
+          <field name="action" ref="print_check"/>
+      </record>
 
         <!--Report Voucher-->
         <record model="ir.action.report" id="report_account_voucher">
@@ -69,6 +98,7 @@ the full copyright notices and license terms. -->
             <field name="type">form</field>
             <field name="name">account_voucher_form</field>
         </record>
+
         <record model="ir.ui.view" id="account_voucher_tree">
             <field name="model">account.voucher</field>
             <field name="type">tree</field>
@@ -135,24 +165,6 @@ the full copyright notices and license terms. -->
             <field name="type">tree</field>
             <field name="name">lines_tree</field>
         </record>
-        <!--
-          <record model="ir.ui.view" id="lines_view_tree">
-            <field name="model">account.voucher.line</field>
-            <field name="type">tree</field>
-            <field name="arch" type="xml">
-                <![CDATA[
-                <tree string="Lines"
-                    colors="If(Greater(Eval('date_expire'), 'date'),'red')">
-                    <field name="name" expand="1"/>
-                    <field name="date"/>
-                    <field name="date_expire"/>
-                    <field name="amount_original"/>
-                    <field name="amount_unreconciled"/>
-                    <field name="amount"/>
-                </tree>
-                ]]>
-            </field>
-        </record>-->
 
         <record model="ir.ui.view" id="lines_credits_view_tree">
             <field name="model">account.voucher.line.credits</field>

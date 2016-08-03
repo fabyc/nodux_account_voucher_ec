@@ -25,6 +25,9 @@ the full copyright notices and license terms. -->
     <field name="from_pay_invoice" invisible="1"/>
     <field name="transfer" invisible="1"/>
     <newline/>
+    <label name="description"/>
+    <field name="description"/>
+    <newline/>
     <notebook colspan="4">
         <page string="Pay Mode Lines" id="pay_lines" states="{'invisible': Eval('transfer', True)}">
             <field name="pay_lines" mode="tree" colspan="4"

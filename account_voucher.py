@@ -11,6 +11,7 @@ from trytond.report import Report
 import pytz
 from datetime import datetime,timedelta
 import time
+from trytond.modules.company import CompanyReport
 
 conversor = None
 try:
@@ -21,9 +22,10 @@ except:
     print("Please install it...!")
 
 
-__all__ = ['AccountVoucherSequence', 'AccountVoucherSequencePayment', 'AccountVoucherPayMode', 'AccountVoucher',
-    'AccountVoucherLine', 'AccountVoucherLineCredits',
-    'AccountVoucherLineDebits', 'AccountVoucherLinePaymode', 'VoucherReport']
+__all__ = ['AccountVoucherSequence', 'AccountVoucherSequencePayment', 'AccountVoucher',
+    'AccountVoucherLine', 'AccountVoucherLineCredits', 'AccountVoucherPayMode',
+    'AccountVoucherLineDebits', 'AccountVoucherLinePaymode', 'VoucherReport',
+    'PrintMove', 'PrintCheck']
 
 _STATES = {
     'readonly': In(Eval('state'), ['posted']),
@@ -114,6 +116,8 @@ class AccountVoucher(ModelSQL, ModelView):
     transfer = fields.Boolean('Realizar movimiento', help='Realizar movimiento de caja a bancos, o transferencia entre bancos',states={
                 'readonly':In(Eval('state'), ['posted']),
                 })
+
+    description = fields.Char('Description', states=_STATES)
 
     @classmethod
     def __setup__(cls):
@@ -401,6 +405,7 @@ class AccountVoucher(ModelSQL, ModelView):
             'journal': self.journal.id,
             'date': self.date,
             'origin': str(self),
+            'description':self.description,
         }])
         self.write([self], {
                 'move': move.id,
@@ -861,4 +866,66 @@ class VoucherReport(Report):
                 obj.amount_to_pay_words = obj.get_amount2words(obj.amount_to_pay)
             new_objs.append(obj)
         return super(VoucherReport, cls).parse(report,
+                new_objs, data, localcontext)
+
+class PrintMove(CompanyReport):
+    'Print Move'
+    __name__ = 'account.voucher.print_move'
+
+    @classmethod
+    def __setup__(cls):
+        super(PrintMove, cls).__setup__()
+
+    @classmethod
+    def parse(cls, report, objects, data, localcontext=None):
+        pool = Pool()
+        Move = pool.get('account.move')
+        sum_debit = Decimal('0.0')
+        sum_credit = Decimal('0.0')
+        invoice = Transaction().context.get('move')
+        for invoice in objects:
+            for line in invoice.move.lines:
+                sum_debit += line.debit
+                sum_credit += line.credit
+
+        localcontext['company'] = Transaction().context.get('company')
+        localcontext['move'] = Transaction().context.get('company')
+        localcontext['invoice'] = Transaction().context.get('voucher')
+        localcontext['sum_debit'] = sum_debit
+        localcontext['sum_credit'] = sum_credit
+
+        return super(PrintMove, cls).parse(report,
+                objects, data, localcontext)
+
+class PrintCheck(Report):
+    'Print Check'
+    __name__ = 'account.voucher.print_check'
+
+    @classmethod
+    def parse(cls, report, objects, data, localcontext=None):
+        Company = Pool().get('company.company')
+        company_id = Transaction().context.get('company')
+        company = Company(company_id)
+        for obj in objects:
+            d = str(obj.amount)
+            decimales = d[-2:]
+            if decimales[0] == '.':
+                 decimales = decimales[1]+'0'
+
+        if company.timezone:
+            timezone = pytz.timezone(company.timezone)
+            dt = datetime.now()
+            hora = datetime.astimezone(dt.replace(tzinfo=pytz.utc), timezone)
+
+        localcontext['company'] = company
+        localcontext['decimales'] = decimales
+        localcontext['hora'] = hora.strftime('%H:%M:%S')
+        localcontext['fecha'] = hora.strftime('%d/%m/%Y')
+
+        new_objs = []
+        for obj in objects:
+            if obj.amount_to_pay and conversor and not obj.amount_to_pay_words:
+                obj.amount_to_pay_words = obj.get_amount2words(obj.amount_to_pay)
+            new_objs.append(obj)
+        return super(PrintCheck, cls).parse(report,
                 new_objs, data, localcontext)
