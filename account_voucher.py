@@ -12,6 +12,8 @@ import pytz
 from datetime import datetime,timedelta
 import time
 from trytond.modules.company import CompanyReport
+from trytond.wizard import Wizard, StateAction, StateView, StateTransition, \
+    Button
 
 conversor = None
 try:
@@ -25,7 +27,7 @@ except:
 __all__ = ['AccountVoucherSequence', 'AccountVoucherSequencePayment', 'AccountVoucher',
     'AccountVoucherLine', 'AccountVoucherLineCredits', 'AccountVoucherPayMode',
     'AccountVoucherLineDebits', 'AccountVoucherLinePaymode', 'VoucherReport',
-    'PrintMove', 'PrintCheck']
+    'PrintMove', 'PrintCheck', 'CancelVoucherStart', 'CancelVoucher']
 
 _STATES = {
     'readonly': In(Eval('state'), ['posted']),
@@ -929,3 +931,27 @@ class PrintCheck(Report):
             new_objs.append(obj)
         return super(PrintCheck, cls).parse(report,
                 new_objs, data, localcontext)
+
+class CancelVoucherStart(ModelView):
+    'Cancel Voucher Start'
+    __name__ = 'account.voucher.cancel_voucher.start'
+
+
+class CancelVoucher(Wizard):
+    'Cancel Voucher'
+    __name__ = 'account.voucher.cancel_voucher'
+    start = StateView('account.voucher.cancel_voucher.start',
+        'nodux_account_voucher_ec.cancel_voucher_start_view_form', [
+            Button('Exit', 'end', 'tryton-cancel'),
+            Button('Cancel', 'cancel_', 'tryton-ok', default=True),
+            ])
+
+    cancel_ = StateAction('nodux_account_voucher_ec.act_voucher_form')
+
+    def do_cancel_(self, action):
+        pool = Pool()
+        Voucher = pool.get('account.voucher')
+        vouchers = Voucher.browse(Transaction().context['active_ids'])
+        for voucher in vouchers:
+            voucher.create_cancel_move()
+            self.write(vouchers, {'state': 'canceled'})

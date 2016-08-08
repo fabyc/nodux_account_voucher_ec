@@ -189,5 +189,23 @@ the full copyright notices and license terms. -->
             <field name="name">pay_lines_form</field>
         </record>
 
+        <!-- Cancel voucher -->
+        <record model="ir.ui.view" id="cancel_voucher_start_view_form">
+            <field name="model">account.voucher.cancel_voucher.start</field>
+            <field name="type">form</field>
+            <field name="name">cancel_voucher_start_form</field>
+        </record>
+
+        <record model="ir.action.wizard" id="wizard_cancel_voucher">
+            <field name="name">Cancel Voucher</field>
+            <field name="wiz_name">account.voucher.cancel_voucher</field>
+            <field name="model">account.voucher</field>
+        </record>
+
+        <record model="ir.action.keyword" id="act_wizard_cancel_voucher_keyword">
+            <field name="keyword">form_action</field>
+            <field name="model">account.voucher,-1</field>
+            <field name="action" ref="wizard_cancel_voucher"/>
+        </record>
     </data>
 </tryton>

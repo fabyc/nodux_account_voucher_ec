@@ -23,9 +23,11 @@ def register():
         AccountVoucherLinePaymode,
         Sale,
         Bank,
+        CancelVoucherStart,
         module='nodux_account_voucher_ec', type_='model')
     Pool.register(
         PayInvoice,
+        CancelVoucher,
         module='nodux_account_voucher_ec', type_='wizard')
     Pool.register(
         VoucherReport,

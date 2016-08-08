@@ -56,6 +56,5 @@ the full copyright notices and license terms. -->
     <field name="state"/>
     <group colspan="6" id="group_voucher_1">
         <button name="post" string="_Pay"/>
-        <button name="cancel" string="_Cancel"/>
     </group>
 </form>

@@ -130,6 +130,10 @@ msgctxt "field:account.voucher,write_uid:"
 msgid "Write User"
 msgstr "Modificado por usuario"
 
+msgctxt "field:account.voucher.cancel_voucher.start,id:"
+msgid "ID"
+msgstr "ID"
+
 msgctxt "field:account.voucher.line,account:"
 msgid "Account"
 msgstr "Cuenta contable"
@@ -478,6 +482,10 @@ msgctxt "model:account.voucher,name:"
 msgid "Account Voucher"
 msgstr "Comprobante contable"
 
+msgctxt "model:account.voucher.cancel_voucher.start,name:"
+msgid "Cancel Voucher Start"
+msgstr "Cancelar Comprobante"
+
 msgctxt "model:account.voucher.line,name:"
 msgid "Account Voucher Line"
 msgstr "Línea del comprobante"
@@ -529,6 +537,10 @@ msgstr ""
 msgctxt "model:ir.action,name:report_account_voucher"
 msgid "Comprobante Ingreso/Egreso"
 msgstr "Comprobante Ingreso/Egreso"
+
+msgctxt "model:ir.action,name:wizard_cancel_voucher"
+msgid "Cancel Voucher"
+msgstr "Cancelar Comprobante"
 
 msgctxt "model:ir.action,name:wizard_select_invoices"
 msgid "Select Invoices to receive/pay"
@@ -852,6 +864,14 @@ msgctxt "view:account.move.line:"
 msgid "Lines"
 msgstr "Líneas"
 
+msgctxt "view:account.voucher.cancel_voucher.start:"
+msgid "Are you sure to cancel those/this voucher(s)?"
+msgstr "¿Está seguro de cancelar estos/este comprobante(s)?"
+
+msgctxt "view:account.voucher.cancel_voucher.start:"
+msgid "Cancel Voucher"
+msgstr "Cancelar Comprobante"
+
 msgctxt "view:account.voucher.line.credits:"
 msgid "Credits"
 msgstr "Créditos"
@@ -889,9 +909,13 @@ msgid "Voucher Lines"
 msgstr "Facturas pendientes"
 
 msgctxt "view:account.voucher:"
-msgid "_Cancel"
-msgstr "_Cancelar"
-
-msgctxt "view:account.voucher:"
 msgid "_Pay"
 msgstr "_Pagar"
+
+msgctxt "wizard_button:account.voucher.cancel_voucher,start,cancel_:"
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgctxt "wizard_button:account.voucher.cancel_voucher,start,end:"
+msgid "Exit"
+msgstr "Salir"
