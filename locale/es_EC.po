@@ -916,6 +916,10 @@ msgctxt "wizard_button:account.voucher.cancel_voucher,start,cancel_:"
 msgid "Cancel"
 msgstr "Cancelar"
 
+msgctxt "wizard_button:account.voucher.cancel_voucher,start,cancel_:"
+msgid "Ok"
+msgstr "Aceptar"
+
 msgctxt "wizard_button:account.voucher.cancel_voucher,start,end:"
 msgid "Exit"
 msgstr "Salir"
