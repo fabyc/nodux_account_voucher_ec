@@ -943,7 +943,7 @@ class CancelVoucher(Wizard):
     start = StateView('account.voucher.cancel_voucher.start',
         'nodux_account_voucher_ec.cancel_voucher_start_view_form', [
             Button('Exit', 'end', 'tryton-cancel'),
-            Button('Cancel', 'cancel_', 'tryton-ok', default=True),
+            Button('Ok', 'cancel_', 'tryton-ok', default=True),
             ])
 
     cancel_ = StateAction('nodux_account_voucher_ec.act_voucher_form')
