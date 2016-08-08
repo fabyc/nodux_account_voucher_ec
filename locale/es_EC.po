@@ -58,7 +58,6 @@ msgctxt "field:account.voucher,date:"
 msgid "Date"
 msgstr "Fecha"
 
-#, fuzzy
 msgctxt "field:account.voucher,description:"
 msgid "Description"
 msgstr "Descripción"
