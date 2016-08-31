@@ -954,4 +954,5 @@ class CancelVoucher(Wizard):
         vouchers = Voucher.browse(Transaction().context['active_ids'])
         for voucher in vouchers:
             voucher.create_cancel_move()
-            self.write(vouchers, {'state': 'canceled'})
+            voucher.state = 'canceled'
+            voucher.save()
