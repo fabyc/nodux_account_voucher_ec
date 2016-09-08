@@ -30,7 +30,7 @@ __all__ = ['AccountVoucherSequence', 'AccountVoucherSequencePayment', 'AccountVo
     'PrintMove', 'PrintCheck', 'CancelVoucherStart', 'CancelVoucher']
 
 _STATES = {
-    'readonly': In(Eval('state'), ['posted']),
+    'readonly': In(Eval('state'), ['posted', 'canceled']),
 }
 
 class AccountVoucherSequence(ModelSingleton, ModelSQL, ModelView):
@@ -71,7 +71,7 @@ class AccountVoucher(ModelSQL, ModelView):
     number = fields.Char('Number', readonly=True, help="Voucher Number")
     party = fields.Many2One('party.party', 'Party', states={
                 'required': ~Eval('active', True),
-                'readonly': In(Eval('state'), ['posted']),
+                'readonly': In(Eval('state'), ['posted', 'canceled']),
                 })
     voucher_type = fields.Selection([
         ('payment', 'Payment'),
@@ -116,7 +116,7 @@ class AccountVoucher(ModelSQL, ModelView):
             states={'readonly': True})
 
     transfer = fields.Boolean('Realizar movimiento', help='Realizar movimiento de caja a bancos, o transferencia entre bancos',states={
-                'readonly':In(Eval('state'), ['posted']),
+                'readonly':In(Eval('state'), ['posted', 'canceled']),
                 })
 
     description = fields.Char('Description', states=_STATES)
