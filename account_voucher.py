@@ -89,10 +89,12 @@ class AccountVoucher(ModelSQL, ModelView):
     lines_credits = fields.One2Many('account.voucher.line.credits', 'voucher',
         'Credits', states={
             'invisible': ~Eval('lines_credits'),
+            'readonly': In(Eval('state'), ['posted', 'canceled']),
             })
     lines_debits = fields.One2Many('account.voucher.line.debits', 'voucher',
         'Debits', states={
             'invisible': ~Eval('lines_debits'),
+            'readonly': In(Eval('state'), ['posted', 'canceled']),
             })
     comment = fields.Text('Comment', states=_STATES)
     state = fields.Selection([
