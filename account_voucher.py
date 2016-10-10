@@ -627,10 +627,10 @@ class AccountVoucher(ModelSQL, ModelView):
         Postdated = pool.get('account.postdated')
         PostdatedLine = pool.get('account.postdated.line')
         postdated = Postdated()
-
         if postdated_lines != None:
             for line in postdated_lines:
                 date = line['date']
+                postdated.postdated_type = 'check'
                 postdated.party = self.party
                 postdated.post_check_type = 'receipt'
                 postdated.journal = 1
@@ -638,7 +638,6 @@ class AccountVoucher(ModelSQL, ModelView):
                 postdated.state = 'draft'
                 postdated.date = date
                 postdated.save()
-
     def get_value_lines(self):
         amount_invoice = self.amount
         if self.lines:
