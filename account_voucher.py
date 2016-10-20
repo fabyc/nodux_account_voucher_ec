@@ -672,6 +672,10 @@ class AccountVoucher(ModelSQL, ModelView):
                 amount += line.amount
                 value_words = self.get_amount2words(amount)
                 self.write([self],{ 'amount_to_pay_words': value_words})
+        else:
+            if self.amount > Decimal('0.0'):
+                value_words = self.get_amount2words(self.amount)
+                self.write([self], {'amount_to_pay_words': value_words})
 
     @classmethod
     @ModelView.button
