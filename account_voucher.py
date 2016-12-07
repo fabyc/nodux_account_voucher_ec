@@ -5,7 +5,7 @@
 from decimal import Decimal
 from trytond.model import ModelSingleton, ModelView, ModelSQL, fields
 from trytond.transaction import Transaction
-from trytond.pyson import Eval, In
+from trytond.pyson import Bool, Eval, Not, In
 from trytond.pool import Pool
 from trytond.report import Report
 import pytz
@@ -32,6 +32,14 @@ __all__ = ['AccountVoucherSequence', 'AccountVoucherSequencePayment', 'AccountVo
 _STATES = {
     'readonly': In(Eval('state'), ['posted', 'canceled']),
 }
+
+_NOPAGOS = [
+    ('',''),
+    ('1', '1 Pago'),
+    ('2', '2 Pagos'),
+    ('3', '3 Pagos'),
+    ('4', '4 Pagos'),
+]
 
 class AccountVoucherSequence(ModelSingleton, ModelSQL, ModelView):
     'Account Voucher Sequence'
@@ -123,6 +131,41 @@ class AccountVoucher(ModelSQL, ModelView):
 
     description = fields.Char('Description', states=_STATES)
 
+    no_pagos = fields.Selection(_NOPAGOS, 'No. de Pagos', states={
+        'invisible': (Eval('voucher_type') != 'payment') | (Not(Bool(Eval('lines')))),
+        'readonly': In(Eval('state'), ['posted', 'canceled']),
+    })
+
+    plazo1 = fields.Integer('Dias', states={
+        'invisible': (Eval('voucher_type') != 'payment') | (Not(Bool(Eval('lines')))) | (Eval('no_pagos').in_([''])),
+        'required': Eval('no_pagos').in_(['1','2','3', '4'])  & (Eval('voucher_type') == 'payment'),
+        'readonly': In(Eval('state'), ['posted', 'canceled']),
+    })
+    plazo2 = fields.Integer('Dias', states={
+        'invisible': Eval('no_pagos').in_(['','1']) | (Eval('voucher_type') != 'payment'),
+        'required': Eval('no_pagos').in_(['2', '3', '4']) & (Eval('voucher_type') == 'payment'),
+        'readonly': In(Eval('state'), ['posted', 'canceled']),
+    })
+    plazo3 = fields.Integer('Dias', states={
+        'invisible': Eval('no_pagos').in_(['','1', '2']) | (Eval('voucher_type') != 'payment'),
+        'required': Eval('no_pagos').in_(['3', '4'])  & (Eval('voucher_type') == 'payment'),
+        'readonly': In(Eval('state'), ['posted', 'canceled']),
+    })
+    plazo4 = fields.Integer('Dias', states={
+        'invisible': Eval('no_pagos').in_(['','1', '2', '3']) | (Eval('voucher_type') != 'payment'),
+        'required': Eval('no_pagos').in_(['4'])  & (Eval('voucher_type') == 'payment'),
+        'readonly': In(Eval('state'), ['posted', 'canceled']),
+    })
+
+    recaudador = fields.Many2One('res.user', 'Recaudador',
+        domain=[
+            ('company', '=', Eval('company', -1)),
+            ],
+        states={
+            'readonly': Eval('state') != 'draft',
+            },
+        depends=['state', 'company'])
+
     @classmethod
     def __setup__(cls):
         super(AccountVoucher, cls).__setup__()
@@ -151,11 +194,21 @@ class AccountVoucher(ModelSQL, ModelView):
         return False
 
     @staticmethod
+    def default_no_pagos():
+        return ''
+
+    @staticmethod
     def default_currency():
         Company = Pool().get('company.company')
         company_id = Transaction().context.get('company')
         if company_id:
             return Company(company_id).currency.id
+
+    @staticmethod
+    def default_recaudador():
+        User = Pool().get('res.user')
+        user = User(Transaction().user)
+        return user.id
 
     @staticmethod
     def default_company():
@@ -226,7 +279,8 @@ class AccountVoucher(ModelSQL, ModelView):
         total = 0
         if self.lines:
             for line in self.lines:
-                total += line.amount_unreconciled or Decimal('0.00')
+                if line.to_pay == True:
+                    total += line.amount_unreconciled or Decimal('0.00')
         return total
 
     @fields.depends('lines', 'pay_lines')
@@ -236,6 +290,391 @@ class AccountVoucher(ModelSQL, ModelView):
             for line in self.lines:
                 total += line.amount or Decimal('0.00')
         return total
+
+    @fields.depends('plazo1', 'plazo2', 'plazo3', 'plazo4', 'amount_to_pay',
+    'lines', 'date', 'pay_lines', 'no_pagos')
+    def on_change_plazo1(self):
+        res = {}
+        res['pay_lines'] = {}
+
+        if self.pay_lines:
+            res['pay_lines']['remove'] = [x['id'] for x in self.pay_lines]
+
+        fecha = self.date
+        date = self.date
+
+        amount_unreconciled = Decimal(0.0)
+        if self.lines:
+            for line in self.lines:
+                if line.to_pay == True:
+                    date = line.date
+        dias = timedelta(self.plazo1)
+
+        fecha = date + dias
+        if self.no_pagos == '1':
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': self.amount_to_pay
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '2':
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': self.amount_to_pay
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+
+            if self.plazo2:
+                valor = self.amount_to_pay/2
+                dias2 = timedelta(self.plazo2)
+                fecha2 = date + dias
+                payment_line = {
+                    'fecha': fecha,
+                    'pay_amount': valor
+                }
+                res['pay_lines'].setdefault('add', []).append((0, payment_line))
+                payment_line = {
+                    'fecha': fecha2,
+                    'pay_amount': valor
+                }
+                res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '3':
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': self.amount_to_pay
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            if self.plazo2 and self.plazo3:
+                valor = self.amount_to_pay/3
+                dias2 = timedelta(self.plazo2)
+                fecha2 = date + dias2
+                dias3= timedelta(self.plazo3)
+                fecha3 = date + dias3
+
+                payment_line = {
+                    'fecha': fecha,
+                    'pay_amount': valor
+                }
+                res['pay_lines'].setdefault('add', []).append((0, payment_line))
+                payment_line = {
+                    'fecha': fecha2,
+                    'pay_amount': valor
+                }
+                res['pay_lines'].setdefault('add', []).append((0, payment_line))
+                payment_line = {
+                    'fecha': fecha3,
+                    'pay_amount': valor
+                }
+                res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '4':
+
+            if self.plazo2 and self.plazo3 and self.plazo4:
+                valor = self.amount_to_pay/4
+                dias2 = timedelta(self.plazo2)
+                fecha2 = date + dias2
+                dias3= timedelta(self.plazo3)
+                fecha3 = date + dias3
+                dias4 = timedelta(self.plazo4)
+                fecha4 = date + dias4
+
+                payment_line = {
+                    'fecha': fecha,
+                    'pay_amount': valor
+                }
+                res['pay_lines'].setdefault('add', []).append((0, payment_line))
+                payment_line = {
+                    'fecha': fecha2,
+                    'pay_amount': valor
+                }
+                res['pay_lines'].setdefault('add', []).append((0, payment_line))
+                payment_line = {
+                    'fecha': fecha3,
+                    'pay_amount': valor
+                }
+                res['pay_lines'].setdefault('add', []).append((0, payment_line))
+                payment_line = {
+                    'fecha': fecha4,
+                    'pay_amount': valor
+                }
+                res['pay_lines'].setdefault('add', []).append((0, payment_line))
+
+        return res
+
+    @fields.depends('plazo1', 'plazo2', 'plazo3', 'plazo4', 'amount_to_pay',
+    'lines', 'date', 'pay_lines', 'no_pagos')
+    def on_change_plazo2(self):
+        res = {}
+        res['pay_lines'] = {}
+        if self.pay_lines:
+            res['pay_lines']['remove'] = [x['id'] for x in self.pay_lines]
+
+        fecha = self.date
+        date = self.date
+
+        amount_unreconciled = Decimal(0.0)
+        if self.lines:
+            for line in self.lines:
+                if line.to_pay == True:
+                    date = line.date
+
+        dias = timedelta(self.plazo1)
+        fecha = date + dias
+        if self.no_pagos == '1':
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': self.amount_to_pay
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '2':
+            valor = self.amount_to_pay/2
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha2,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '3':
+            valor = self.amount_to_pay/3
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha2,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha3,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '4':
+            valor = self.amount_to_pay/4
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+            dias4 = timedelta(self.plazo4)
+            fecha4 = date + dias4
+
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha2,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha3,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha4,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        return res
+
+    @fields.depends('plazo1', 'plazo2', 'plazo3', 'plazo4', 'amount_to_pay',
+    'lines', 'date', 'pay_lines', 'no_pagos')
+    def on_change_plazo3(self):
+        res = {}
+        res['pay_lines'] = {}
+        if self.pay_lines:
+            res['pay_lines']['remove'] = [x['id'] for x in self.pay_lines]
+
+        fecha = self.date
+        date = self.date
+
+        amount_unreconciled = Decimal(0.0)
+        if self.lines:
+            for line in self.lines:
+                if line.to_pay == True:
+                    date = line.date
+
+        dias = timedelta(self.plazo1)
+        fecha = date + dias
+        if self.no_pagos == '1':
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': self.amount_to_pay
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '2':
+            valor = self.amount_to_pay/2
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha2,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '3':
+            valor = self.amount_to_pay/3
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha2,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha3,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '4':
+            valor = self.amount_to_pay/4
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+            dias4 = timedelta(self.plazo4)
+            fecha4 = date + dias4
+
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha2,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha3,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha4,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        return res
+
+    @fields.depends('plazo1', 'plazo2', 'plazo3', 'plazo4', 'amount_to_pay',
+    'lines', 'date', 'pay_lines', 'no_pagos')
+    def on_change_plazo4(self):
+        res = {}
+        res['pay_lines'] = {}
+        if self.pay_lines:
+            res['pay_lines']['remove'] = [x['id'] for x in self.pay_lines]
+
+        fecha = self.date
+        date = self.date
+
+        amount_unreconciled = Decimal(0.0)
+        if self.lines:
+            for line in self.lines:
+                if line.to_pay == True:
+                    date = line.date
+
+        dias = timedelta(self.plazo1)
+        fecha = date + dias
+        if self.no_pagos == '1':
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': self.amount_to_pay
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '2':
+            valor = self.amount_to_pay/2
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha2,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '3':
+            valor = self.amount_to_pay/3
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha2,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha3,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        elif self.no_pagos == '4':
+            valor = self.amount_to_pay/4
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+            dias4 = timedelta(self.plazo4)
+            fecha4 = date + dias4
+
+            payment_line = {
+                'fecha': fecha,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha2,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha3,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+            payment_line = {
+                'fecha': fecha4,
+                'pay_amount': valor
+            }
+            res['pay_lines'].setdefault('add', []).append((0, payment_line))
+        return res
 
     @fields.depends('party', 'voucher_type', 'lines', 'lines_credits',
         'lines_debits', 'from_pay_invoice')
@@ -270,6 +709,7 @@ class AccountVoucher(ModelSQL, ModelView):
         if self.voucher_type == 'receipt':
             account_types = ['receivable']
         else:
+            res['description'] = "PAGO DE FACTURA "+self.party.name
             account_types = ['payable']
         move_lines = MoveLine.search([
             ('party', '=', self.party),
@@ -424,14 +864,19 @@ class AccountVoucher(ModelSQL, ModelView):
                 if self.voucher_type == 'receipt':
                     debit = line.pay_amount
                     credit = Decimal('0.0')
+                    account = line.pay_mode.account.id
                 else:
                     debit = Decimal('0.0')
                     credit = line.pay_amount
+                    if line.banco:
+                        account = line.banco.account_expense.id
+                    else:
+                        account = line.pay_mode.account.id
 
                 move_lines.append({
                     'debit': debit,
                     'credit': credit,
-                    'account': line.pay_mode.account.id,
+                    'account': account,
                     'move': move.id,
                     'journal': self.journal.id,
                     'period': Period.find(self.company.id, date=self.date),
@@ -597,7 +1042,7 @@ class AccountVoucher(ModelSQL, ModelView):
                         reconcile_lines.append(move_line)
                         Invoice.write([invoice], {
                             'payment_lines': [('add', [move_line.id])],
-                        })
+                        }) 
 
                 if remainder == Decimal('0.00'):
                     MoveLine.reconcile(reconcile_lines)
@@ -662,26 +1107,29 @@ class AccountVoucher(ModelSQL, ModelView):
                 postdated.state = 'draft'
                 postdated.date = date
                 postdated.save()
+
     def get_value_lines(self):
         amount_invoice = self.amount
         if self.lines:
             res = {}
             for line in self.lines:
-                if line.amount_unreconciled < amount_invoice:
-                    value = Decimal('0.0')
-                    amount_invoice -= line.amount_unreconciled
-                    line.write([line],{ 'amount': line.amount_unreconciled})
-                    line.write([line],{ 'amount_unreconciled': value})
+                if line.to_pay == True:
+                    if line.amount_unreconciled < amount_invoice:
+                        value = Decimal('0.0')
+                        amount_invoice -= line.amount_unreconciled
+                        line.write([line],{ 'amount': line.amount_unreconciled})
+                        line.write([line],{ 'amount_unreconciled': value})
 
-                if line.amount_unreconciled >= amount_invoice:
-                    value = line.amount_unreconciled - amount_invoice
-                    line.write([line],{ 'amount': amount_invoice})
-                    line.write([line],{ 'amount_unreconciled': value})
-                    amount_invoice = Decimal('0.0')
+                    if line.amount_unreconciled >= amount_invoice:
+                        value = line.amount_unreconciled - amount_invoice
+                        line.write([line],{ 'amount': amount_invoice})
+                        line.write([line],{ 'amount_unreconciled': value})
+                        amount_invoice = Decimal('0.0')
 
             if amount_invoice != 0:
                 warning_name = u'Tiene un excedente ¿Desea generar un anticipo?'
                 self.raise_user_warning(warning_name, 'payment_advanced')
+
 
     def get_amount2words(self, value):
             if conversor:
@@ -693,9 +1141,10 @@ class AccountVoucher(ModelSQL, ModelView):
         if self.lines:
             amount = Decimal('0.0')
             for line in self.lines:
-                amount += line.amount
-                value_words = self.get_amount2words(amount)
-                self.write([self],{ 'amount_to_pay_words': value_words})
+                if line.to_pay == True:
+                    amount += line.amount
+                    value_words = self.get_amount2words(amount)
+                    self.write([self],{ 'amount_to_pay_words': value_words})
         else:
             if self.amount > Decimal('0.0'):
                 value_words = self.get_amount2words(self.amount)
@@ -708,13 +1157,24 @@ class AccountVoucher(ModelSQL, ModelView):
         module = None
         Module = pool.get('ir.module.module')
         module = Module.search([('name', '=', 'nodux_account_postdated_check'), ('state', '=', 'installed')])
+        Banco = pool.get('bank')
+
         for voucher in vouchers:
+            if voucher.voucher_type == 'payment':
+                for line in voucher.pay_lines:
+                    if line.numero_doc:
+                        numero = int(line.numero_doc[2:])
+                        bancos = Banco.search([('id', '=', line.banco.id)])
+                        for banco in bancos:
+                            numero_actual = banco.nro_documento
+                            banco.nro_documento = numero + 1
+                            banco.save()
             voucher.get_value_lines()
             voucher.get_toWords()
             voucher.set_number()
             move_lines = voucher.prepare_move_lines()
             voucher.create_move(move_lines)
-            if module:
+            if module and (voucher.voucher_type == 'receipt'):
                 postdated_lines = voucher.prepare_postdated_lines()
                 voucher.create_postdated_check(postdated_lines)
         cls.write(vouchers, {'state': 'posted'})
@@ -746,6 +1206,8 @@ class AccountVoucherLine(ModelSQL, ModelView):
     date = fields.Date('Date')
     date_expire = fields.Function(fields.Date('Expire date'),
             'get_expire_date')
+
+    to_pay = fields.Boolean('To pay')
 
     def get_reference(self, name):
         Invoice = Pool().get('account.invoice')
@@ -854,6 +1316,8 @@ class AccountVoucherLinePaymode(ModelSQL, ModelView):
                 default = self.pay_mode.account.id
                 paymode= PayMode(self.pay_mode)
                 if self.banco:
+                    result['cuenta_tercero'] = self.banco.nro_cuenta_bancaria
+                    result['numero_doc'] = '00'+str(self.banco.nro_documento)
                     name = paymode.name.lower()
                     if ('deposito' in name) or (u'depósito' in name) or ('transferencia' in name):
                         if self.banco.account_expense:
