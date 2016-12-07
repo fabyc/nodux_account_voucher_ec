@@ -535,9 +535,10 @@ class AccountVoucher(ModelSQL, ModelView):
         name = None
         invoice = None
         for line in self.lines:
-            original = line.amount_original
-            unreconciled = line.amount_unreconciled
-            name = line.name
+            if line.to_pay == True:
+                original = line.amount_original
+                unreconciled = line.amount_unreconciled
+                name = line.name
         if name != None:
             invoice = Invoice.search([('number', '=', name), ('description', '!=', None)])
         if invoice:
@@ -557,26 +558,49 @@ class AccountVoucher(ModelSQL, ModelView):
 
         # reconcile check
         for line in self.lines:
-            if line.amount == Decimal("0.00"):
-                continue
-            invoice = Invoice(line.move_line.origin.id)
-            if self.voucher_type == 'receipt':
-                amount = line.amount
-            else:
-                amount = -line.amount
-            reconcile_lines, remainder = \
-                Invoice.get_reconcile_lines_for_amount(
-                    invoice, amount)
-            for move_line in created_lines:
-                if move_line.description == 'advance':
+            if line.to_pay == True:
+                if line.amount == Decimal("0.00"):
                     continue
-                if move_line.description == invoice.number:
-                    reconcile_lines.append(move_line)
-                    Invoice.write([invoice], {
-                        'payment_lines': [('add', [move_line.id])],
+                invoice = Invoice(line.move_line.origin.id)
+
+                monto_anticipos = Decimal(0.0)
+                move_voucher = Move.search([('description', '=', sale.description)])
+                if move_voucher:
+                    for voucher in move_voucher:
+                        for line_v in voucher.lines:
+                            if line_v.reconciliation == None and line_v.credit > Decimal(0.0):
+                                monto_anticipos += line_v.credit
+
+                if self.voucher_type == 'receipt':
+                    amount = line.amount + monto_anticipos
+                else:
+                    amount = -(line.amount + monto_anticipos)
+                reconcile_lines, remainder = \
+                    Invoice.get_reconcile_lines_for_amount(
+                        invoice, amount)
+
+                move_voucher = Move.search([('description', '=', sale.description)])
+                if move_voucher:
+                    for voucher in move_voucher:
+                        for line_v in voucher.lines:
+
+                            if line_v.reconciliation == None and line_v.credit > Decimal(0.0):
+                                line_v.state = 'valid'
+                                line_v.save()
+                                reconcile_lines.append(line_v)
+                for move_line in created_lines:
+                    if move_line.description == 'advance':
+                        continue
+                    if move_line.description == invoice.number:
+                        move_line.state = 'valid'
+                        move_line.save()
+                        reconcile_lines.append(move_line)
+                        Invoice.write([invoice], {
+                            'payment_lines': [('add', [move_line.id])],
                         })
-            if remainder == Decimal('0.00'):
-                MoveLine.reconcile(reconcile_lines)
+
+                if remainder == Decimal('0.00'):
+                    MoveLine.reconcile(reconcile_lines)
 
         reconcile_lines = []
         for line in self.lines_credits:
