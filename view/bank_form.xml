@@ -6,5 +6,11 @@ this repository contains the full copyright notices and license terms. -->
         position="after">
         <label name="account_expense"/>
         <field name="account_expense"/>
+        <newline/>
+        <label name="nro_cuenta_bancaria"/>
+        <field name="nro_cuenta_bancaria"/>
+        <newline/>
+        <label name= "nro_documento"/>
+        <field name="nro_documento"/>
     </xpath>
 </data>

@@ -7,6 +7,7 @@ the full copyright notices and license terms. -->
     <field name="party"/>
     <label name="number"/>
     <field name="number"/>
+
     <group col="4" colspan="4" id="amounts">
         <label name="amount_to_pay"/>
         <field name="amount_to_pay"/>
@@ -25,8 +26,20 @@ the full copyright notices and license terms. -->
     <field name="from_pay_invoice" invisible="1"/>
     <field name="transfer" invisible="1"/>
     <newline/>
+    <label name="recaudador"/>
+    <field name="recaudador"/>
+    <newline/>
     <label name="description"/>
     <field name="description"/>
+    <newline/>
+    <label name="no_pagos"/>
+    <field name="no_pagos"/>
+    <newline/>
+    <label name="plazo1" xalign="1.0" xexpand="1"/>
+    <field name="plazo1" xalign="1" xexpand="0"/>
+    <field name="plazo2" xalign="0" xexpand="0"/>
+    <field name="plazo3" xalign="0" xexpand="0"/>
+    <field name="plazo4" xalign="0" xexpand="0"/>
     <newline/>
     <notebook colspan="4">
         <page string="Pay Mode Lines" id="pay_lines" states="{'invisible': Eval('transfer', True)}">
