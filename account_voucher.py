@@ -685,7 +685,8 @@ class AccountVoucher(ModelSQL, ModelView):
         MoveLine = pool.get('account.move.line')
         InvoiceAccountMoveLine = pool.get('account.invoice-account.move.line')
         monto_anticipos = Decimal(0.0)
-
+        description = None
+        
         if self.from_pay_invoice:
             # The voucher was launched from Invoice's PayInvoice wizard:
             # 'lines', 'lines_credits', 'lines_debits' should be set there
@@ -741,12 +742,13 @@ class AccountVoucher(ModelSQL, ModelView):
                 name = Invoice(line.origin.id).number
                 description = Invoice(line.origin.id).description
 
-            move_voucher = Move.search([('description', '=', description)])
-            if move_voucher:
-                for voucher in move_voucher:
-                    for line_v in voucher.lines:
-                        if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party:
-                            monto_anticipos += line_v.credit
+            if description:
+                move_voucher = Move.search([('description', '=', description)])
+                if move_voucher:
+                    for voucher in move_voucher:
+                        for line_v in voucher.lines:
+                            if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party:
+                                monto_anticipos += line_v.credit
 
             payment_line = {
                 'name': name,
@@ -1000,10 +1002,10 @@ class AccountVoucher(ModelSQL, ModelView):
         if invoice:
             for i in invoice:
                 invoice_d = i.description
-
         if invoice_d != None:
             sales = Sale.search([('reference', '=', invoice_d)])
 
+        print "Las ventas ", sales
         if sales:
             for s in sales:
                 sale = s
