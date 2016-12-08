@@ -51,6 +51,7 @@ class Line:
 
 
 class Reconciliation():
+    __name__ = 'account.move.reconciliation'
 
     @classmethod
     def __setup__(cls):

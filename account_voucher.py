@@ -681,8 +681,10 @@ class AccountVoucher(ModelSQL, ModelView):
     def on_change_party(self):
         pool = Pool()
         Invoice = pool.get('account.invoice')
+        Move = pool.get('account.move')
         MoveLine = pool.get('account.move.line')
         InvoiceAccountMoveLine = pool.get('account.invoice-account.move.line')
+        monto_anticipos = Decimal(0.0)
 
         if self.from_pay_invoice:
             # The voucher was launched from Invoice's PayInvoice wizard:
@@ -737,12 +739,21 @@ class AccountVoucher(ModelSQL, ModelView):
             model = str(line.origin)
             if model[:model.find(',')] == 'account.invoice':
                 name = Invoice(line.origin.id).number
+                description = Invoice(line.origin.id).description
+
+            move_voucher = Move.search([('description', '=', description)])
+            if move_voucher:
+                for voucher in move_voucher:
+                    for line_v in voucher.lines:
+                        if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party:
+                            monto_anticipos += line_v.credit
+
             payment_line = {
                 'name': name,
                 'account': line.account.id,
                 'amount': Decimal('0.00'),
                 'amount_original': amount,
-                'amount_unreconciled': abs(line.amount_residual),
+                'amount_unreconciled': abs(line.amount_residual) - monto_anticipos,
                 'line_type': line_type,
                 'move_line': line.id,
                 'date': line.date,
@@ -1042,7 +1053,7 @@ class AccountVoucher(ModelSQL, ModelView):
                         reconcile_lines.append(move_line)
                         Invoice.write([invoice], {
                             'payment_lines': [('add', [move_line.id])],
-                        }) 
+                        })
 
                 if remainder == Decimal('0.00'):
                     MoveLine.reconcile(reconcile_lines)
