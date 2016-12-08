@@ -12,3 +12,5 @@ class Bank:
     'Bank'
     __name__ = 'bank'
     account_expense = fields.Many2One('account.account', 'Account')
+    nro_cuenta_bancaria = fields.Char('No. Cuenta Bancaria')
+    nro_documento = fields.Integer('No. Documento')
