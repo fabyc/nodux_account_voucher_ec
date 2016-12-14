@@ -25,7 +25,7 @@ class Line:
     @classmethod
     def __setup__(cls):
         super(Line, cls).__setup__()
-        cls._check_modify_exclude = {'reconciliation', 'state'}
+        cls._check_modify_exclude = {'reconciliation', 'debit', 'credit', 'state'}
 
     def get_amount_residual(self, name):
         Invoice = Pool().get('account.invoice')
@@ -60,6 +60,7 @@ class Reconciliation():
     @classmethod
     def check_lines(cls, reconciliations):
         Lang = Pool().get('ir.lang')
+        Configuration = Pool().get('account.configuration')
         for reconciliation in reconciliations:
             debit = Decimal('0.0')
             credit = Decimal('0.0')
@@ -73,16 +74,24 @@ class Reconciliation():
                 if line.state != 'valid':
                     cls.raise_user_error('reconciliation_line_not_valid',
                         (line.rec_name,))
+
                 debit += line.debit
                 credit += line.credit
+                print line.account.id
+
                 if not account:
                     account = line.account
-                elif account.id != line.account.id:
-                    cls.raise_user_error('reconciliation_different_accounts', {
-                            'line': line.rec_name,
-                            'account1': line.account.rec_name,
-                            'account2': account.rec_name,
-                            })
+                if account == Configuration(1).default_account_advanced:
+                    pass
+                else:
+                    if not account:
+                        account = line.account
+                    elif account.id != line.account.id:
+                        cls.raise_user_error('reconciliation_different_accounts', {
+                                'line': line.rec_name,
+                                'account1': line.account.rec_name,
+                                'account2': account.rec_name,
+                                })
                 if not account.reconcile:
                     cls.raise_user_error('reconciliation_account_no_reconcile',
                         {
