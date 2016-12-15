@@ -94,6 +94,10 @@ msgctxt "field:account.voucher,move_canceled:"
 msgid "Move Canceled"
 msgstr "Movimiento cancelado"
 
+msgctxt "field:account.voucher,no_pagos:"
+msgid "No. de Pagos"
+msgstr ""
+
 msgctxt "field:account.voucher,number:"
 msgid "Number"
 msgstr "Número"
@@ -106,9 +110,29 @@ msgctxt "field:account.voucher,pay_lines:"
 msgid "Pay Mode Lines"
 msgstr "Formas de pago"
 
+msgctxt "field:account.voucher,plazo1:"
+msgid "Dias"
+msgstr ""
+
+msgctxt "field:account.voucher,plazo2:"
+msgid "Dias"
+msgstr ""
+
+msgctxt "field:account.voucher,plazo3:"
+msgid "Dias"
+msgstr ""
+
+msgctxt "field:account.voucher,plazo4:"
+msgid "Dias"
+msgstr ""
+
 msgctxt "field:account.voucher,rec_name:"
 msgid "Name"
 msgstr "Nombre"
+
+msgctxt "field:account.voucher,recaudador:"
+msgid "Recaudador"
+msgstr ""
 
 msgctxt "field:account.voucher,state:"
 msgid "State"
@@ -189,6 +213,10 @@ msgstr "Nombre"
 msgctxt "field:account.voucher.line,reference:"
 msgid "reference"
 msgstr "Referencia"
+
+msgctxt "field:account.voucher.line,to_pay:"
+msgid "To pay"
+msgstr "Pagar"
 
 msgctxt "field:account.voucher.line,voucher:"
 msgid "Voucher"
@@ -470,6 +498,14 @@ msgctxt "field:bank,account_expense:"
 msgid "Account"
 msgstr "Cuenta"
 
+msgctxt "field:bank,nro_cuenta_bancaria:"
+msgid "No. Cuenta Bancaria"
+msgstr ""
+
+msgctxt "field:bank,nro_documento:"
+msgid "No. Documento"
+msgstr ""
+
 msgctxt "help:account.voucher,number:"
 msgid "Voucher Number"
 msgstr "Número de comprobante"
@@ -527,7 +563,7 @@ msgid "Receipts"
 msgstr "Comprobante de ingreso"
 
 msgctxt "model:ir.action,name:print_check"
-msgid "Imprimir Asiento"
+msgid "Imprimir Cheque"
 msgstr ""
 
 msgctxt "model:ir.action,name:print_move"
@@ -815,6 +851,26 @@ msgstr "VALOR EN LETRAS:"
 msgctxt "odt:account.voucher.report:"
 msgid "VALOR NETO:"
 msgstr "VALOR NETO:"
+
+msgctxt "selection:account.voucher,no_pagos:"
+msgid ""
+msgstr ""
+
+msgctxt "selection:account.voucher,no_pagos:"
+msgid "1 Pago"
+msgstr ""
+
+msgctxt "selection:account.voucher,no_pagos:"
+msgid "2 Pagos"
+msgstr ""
+
+msgctxt "selection:account.voucher,no_pagos:"
+msgid "3 Pagos"
+msgstr ""
+
+msgctxt "selection:account.voucher,no_pagos:"
+msgid "4 Pagos"
+msgstr ""
 
 msgctxt "selection:account.voucher,state:"
 msgid "Canceled"
