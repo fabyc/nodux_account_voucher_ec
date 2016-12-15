@@ -14,7 +14,6 @@ class Sale:
     @classmethod
     def __setup__(cls):
         super(Sale, cls).__setup__()
-        print cls
 
     @classmethod
     def get_residual_amount_voucher(cls, sales, names, residual_amount):

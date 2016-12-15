@@ -77,7 +77,6 @@ class Reconciliation():
 
                 debit += line.debit
                 credit += line.credit
-                print line.account.id
 
                 if not account:
                     account = line.account

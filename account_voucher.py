@@ -1073,23 +1073,19 @@ class AccountVoucher(ModelSQL, ModelView):
                             if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == description_line:
                                 monto_anticipos += line_v.credit
 
-                print "Line ", line.name
                 if line.name:
                     Withholding = pool.get('account.withholding')
                     withholdings = Withholding.search([('number_w', '=', line.name), ('type', '=', 'out_withholding')])
-                    print "Si hay retenciones ", withholdings
                     if withholdings:
                         for withholding in withholdings:
                             for line_w in withholding.move.lines:
                                 if line_w.reconciliation == None and line_w.credit > Decimal(0.0) and line_w.party  == self.party:
-                                    print "Si hay alguna retencion"
                                     monto_retenciones += line_w.credit
 
                 if self.voucher_type == 'receipt':
                     amount = line.amount + monto_anticipos + monto_retenciones
                 else:
                     amount = -(line.amount + monto_anticipos)
-                print "Invoice ", invoice, amount
                 reconcile_lines, remainder = \
                     Invoice.get_reconcile_lines_for_amount(
                         invoice, amount)
@@ -1108,7 +1104,6 @@ class AccountVoucher(ModelSQL, ModelView):
                         for withholding in withholdings:
                             for line_w in withholding.move.lines:
                                 if line_w.reconciliation == None and line_w.credit > Decimal(0.0) and line_w.party  == self.party:
-                                    print "Si hay alguna retencio para agregarn"
                                     line_w.state = 'valid'
                                     line_w.save()
                                     reconcile_lines.append(line_w)
@@ -1123,7 +1118,6 @@ class AccountVoucher(ModelSQL, ModelView):
                         Invoice.write([invoice], {
                             'payment_lines': [('add', [move_line.id])],
                         })
-                print "remainder ", reconcile_lines, remainder
                 if remainder == Decimal('0.00'):
                     MoveLine.reconcile(reconcile_lines)
 
