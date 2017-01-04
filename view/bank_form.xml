@@ -12,5 +12,9 @@ this repository contains the full copyright notices and license terms. -->
         <newline/>
         <label name= "nro_documento"/>
         <field name="nro_documento"/>
+        <newline/>
+        <label name="saldo_inicial"/>
+        <field name="saldo_inicial"/>
+        <newline/>
     </xpath>
 </data>

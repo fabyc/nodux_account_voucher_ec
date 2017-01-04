@@ -681,12 +681,14 @@ class AccountVoucher(ModelSQL, ModelView):
     @fields.depends('party', 'voucher_type', 'lines', 'lines_credits',
         'lines_debits', 'from_pay_invoice')
     def on_change_party(self):
+        print "Ingresa aqui on change party"
         pool = Pool()
         Invoice = pool.get('account.invoice')
         Move = pool.get('account.move')
         MoveLine = pool.get('account.move.line')
         InvoiceAccountMoveLine = pool.get('account.invoice-account.move.line')
         description = None
+        withholdings = None
 
         if self.from_pay_invoice:
             # The voucher was launched from Invoice's PayInvoice wizard:
@@ -766,7 +768,7 @@ class AccountVoucher(ModelSQL, ModelView):
                 'account': line.account.id,
                 'amount': Decimal('0.00'),
                 'amount_original': amount,
-                'amount_unreconciled': abs(line.amount_residual) - (monto_anticipos + monto_retenciones),
+                'amount_unreconciled': abs(line.credit) - (monto_anticipos + monto_retenciones), #replace abs(line.amount_residual)
                 'line_type': line_type,
                 'move_line': line.id,
                 'date': line.date,
@@ -1034,6 +1036,8 @@ class AccountVoucher(ModelSQL, ModelView):
         sales = None
         name = None
         invoice = None
+        withholdings = None
+
         for line in self.lines:
             if line.to_pay == True:
                 original = line.amount_original
@@ -1066,21 +1070,29 @@ class AccountVoucher(ModelSQL, ModelView):
                 monto_retenciones = Decimal(0.0)
 
                 move_voucher = Move.search([('description', '!=', None)])
-                if move_voucher:
-                    for voucher in move_voucher:
-                        for line_v in voucher.lines:
-                            description_line = 'used'+str(sale.reference)
-                            if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == description_line:
-                                monto_anticipos += line_v.credit
 
-                if line.name:
-                    Withholding = pool.get('account.withholding')
-                    withholdings = Withholding.search([('number_w', '=', line.name), ('type', '=', 'out_withholding')])
-                    if withholdings:
-                        for withholding in withholdings:
-                            for line_w in withholding.move.lines:
-                                if line_w.reconciliation == None and line_w.credit > Decimal(0.0) and line_w.party  == self.party:
-                                    monto_retenciones += line_w.credit
+                if self.voucher_type == 'receipt':
+
+                    if move_voucher:
+                        for voucher in move_voucher:
+                            for line_v in voucher.lines:
+                                description_line = 'used'+str(sale.reference)
+                                """
+                                if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == None:
+                                    monto_anticipos += line_v.credit
+                                """
+                                if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == description_line:
+                                    monto_anticipos += line_v.credit
+
+
+                    if line.name:
+                        Withholding = pool.get('account.withholding')
+                        withholdings = Withholding.search([('number_w', '=', line.name), ('type', '=', 'out_withholding')])
+                        if withholdings:
+                            for withholding in withholdings:
+                                for line_w in withholding.move.lines:
+                                    if line_w.reconciliation == None and line_w.credit > Decimal(0.0) and line_w.party  == self.party:
+                                        monto_retenciones += line_w.credit
 
                 if self.voucher_type == 'receipt':
                     amount = line.amount + monto_anticipos + monto_retenciones
@@ -1093,12 +1105,21 @@ class AccountVoucher(ModelSQL, ModelView):
                 move_voucher = Move.search([('description', '!=', None)])
                 if move_voucher:
                     for voucher in move_voucher:
-                        for line_v in voucher.lines:
-                            description_line = 'used'+str(sale.reference)
-                            if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and  line_v.party == self.party and line_v.description == description_line:
-                                line_v.state = 'valid'
-                                line_v.save()
-                                reconcile_lines.append(line_v)
+                        if self.voucher_type == 'receipt':
+
+                            for line_v in voucher.lines:
+                                """
+                                if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and  line_v.party == self.party and line_v.description == None:
+                                    line_v.state = 'valid'
+                                    line_v.save()
+                                    reconcile_lines.append(line_v)
+                                """
+                                description_line = 'used'+str(sale.reference)
+                                if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and  line_v.party == self.party and line_v.description == description_line:
+                                    line_v.state = 'valid'
+                                    line_v.save()
+                                    reconcile_lines.append(line_v)
+
                 if line.name:
                     if withholdings:
                         for withholding in withholdings:
@@ -1118,8 +1139,11 @@ class AccountVoucher(ModelSQL, ModelView):
                         Invoice.write([invoice], {
                             'payment_lines': [('add', [move_line.id])],
                         })
+
                 if remainder == Decimal('0.00'):
                     MoveLine.reconcile(reconcile_lines)
+
+
 
         """
         reconcile_lines = []
@@ -1183,6 +1207,60 @@ class AccountVoucher(ModelSQL, ModelView):
                 postdated.date = date
                 postdated.save()
 
+    def prepare_bank_reconciliation(self):
+        pool = Pool()
+        Reconciled = pool.get('account.reconciliation')
+        AllReconciled = pool.get('account.reconciliation_all')
+        Bank = pool.get('bank')
+        reconciled = Reconciled()
+        allreconciled = AllReconciled()
+        amount_total = Decimal(0.0)
+
+        if self.pay_lines:
+            for line in self.pay_lines:
+                account = line.banco.account_expense.id
+                banks = Bank.search([('account_expense', '=', account)])
+                if banks:
+                    for bank in banks:
+                        if bank.nro_cuenta_bancaria:
+                            nro_cuenta_bancaria = bank.nro_cuenta_bancaria
+                        else:
+                            self.raise_user_error('Configure el numero de cuenta bancaria')
+                        if bank.party.name:
+                            name_bank = bank.party.name
+                        else:
+                            self.raise_user_error('Configure el nombre del Banco')
+                else:
+                    self.raise_user_error('Configure los datos del Banco')
+
+                all_rs = AllReconciled.search([('account_bank', '=', nro_cuenta_bancaria)])
+
+                if all_rs:
+                    for a_r in all_rs:
+                        allreconciled = a_r
+                else:
+                    allreconciled.name_bank = name_bank
+                    allreconciled.account_bank = nro_cuenta_bancaria
+                    allreconciled.save()
+                if line.pay_mode.account.name == 'EFECTOS DE COBRO INMEDIATO (CHEQUES)':
+                    amount_total += line.pay_amount
+                    reconciled.bank_account_ref = allreconciled.id
+                    reconciled.amount = line.pay_amount
+                    reconciled.conciliar = False
+                    reconciled.account = line.banco.account_expense.id
+                    reconciled.state = 'draft'
+                    reconciled.date = self.date
+                    reconciled.expired = line.fecha
+                    reconciled.party = self.party
+                    reconciled.ch_num = line.numero_doc
+                    reconciled.bank_account = line.banco.nro_cuenta_bancaria
+                    reconciled.save()
+
+                allreconciled.libro_debito = allreconciled.libro_debito  + amount_total
+                allreconciled.libro_balance = (allreconciled.libro_inicial + allreconciled.libro_credito)-allreconciled.libro_debito
+                allreconciled.save()
+
+
     def get_value_lines(self):
         amount_invoice = self.amount
         if self.lines:
@@ -1236,6 +1314,7 @@ class AccountVoucher(ModelSQL, ModelView):
 
         for voucher in vouchers:
             if voucher.voucher_type == 'payment':
+                voucher.prepare_bank_reconciliation()
                 for line in voucher.pay_lines:
                     if line.numero_doc:
                         numero = int(line.numero_doc[2:])
@@ -1244,6 +1323,7 @@ class AccountVoucher(ModelSQL, ModelView):
                             numero_actual = banco.nro_documento
                             banco.nro_documento = numero + 1
                             banco.save()
+
             voucher.get_value_lines()
             voucher.get_toWords()
             voucher.set_number()
