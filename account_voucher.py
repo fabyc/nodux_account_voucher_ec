@@ -681,7 +681,6 @@ class AccountVoucher(ModelSQL, ModelView):
     @fields.depends('party', 'voucher_type', 'lines', 'lines_credits',
         'lines_debits', 'from_pay_invoice')
     def on_change_party(self):
-        print "Ingresa aqui on change party"
         pool = Pool()
         Invoice = pool.get('account.invoice')
         Move = pool.get('account.move')
@@ -753,6 +752,11 @@ class AccountVoucher(ModelSQL, ModelView):
                         for line_v in voucher.lines:
                             if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party:
                                 monto_anticipos += line_v.credit
+                else:
+                    move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
+                    for move_line in move_lines:
+                        if move_line.credit > Decimal(0.0):
+                            monto_anticipos += move_line.credit
 
             if name:
                 Withholding = pool.get('account.withholding')
@@ -763,12 +767,17 @@ class AccountVoucher(ModelSQL, ModelView):
                             if line_w.reconciliation == None and line_w.credit > Decimal(0.0) and line_w.party  == self.party:
                                 monto_retenciones += line_w.credit
 
+            if self.voucher_type == 'receipt':
+                new_amount = line.debit
+            else:
+                new_amount = line.credit
+
             payment_line = {
                 'name': name,
                 'account': line.account.id,
                 'amount': Decimal('0.00'),
                 'amount_original': amount,
-                'amount_unreconciled': abs(line.credit) - (monto_anticipos + monto_retenciones), #replace abs(line.amount_residual)
+                'amount_unreconciled': abs((new_amount)-(monto_anticipos+monto_retenciones)),#abs(line.credit) - (monto_anticipos + monto_retenciones)
                 'line_type': line_type,
                 'move_line': line.id,
                 'date': line.date,
@@ -1077,13 +1086,13 @@ class AccountVoucher(ModelSQL, ModelView):
                         for voucher in move_voucher:
                             for line_v in voucher.lines:
                                 description_line = 'used'+str(sale.reference)
+
+                                if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == description_line:
+                                    monto_anticipos += line_v.credit
                                 """
                                 if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == None:
                                     monto_anticipos += line_v.credit
                                 """
-                                if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == description_line:
-                                    monto_anticipos += line_v.credit
-
 
                     if line.name:
                         Withholding = pool.get('account.withholding')
@@ -1120,6 +1129,14 @@ class AccountVoucher(ModelSQL, ModelView):
                                     line_v.save()
                                     reconcile_lines.append(line_v)
 
+                else:
+                    move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
+                    for move_l in move_lines:
+                        if move_l.credit > Decimal(0.0):
+                            move_l.state = 'valid'
+                            move_l.save()
+                            reconcile_lines.append(move_l)
+
                 if line.name:
                     if withholdings:
                         for withholding in withholdings:
@@ -1142,8 +1159,6 @@ class AccountVoucher(ModelSQL, ModelView):
 
                 if remainder == Decimal('0.00'):
                     MoveLine.reconcile(reconcile_lines)
-
-
 
         """
         reconcile_lines = []

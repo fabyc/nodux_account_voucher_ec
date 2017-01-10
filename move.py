@@ -59,8 +59,11 @@ class Reconciliation():
 
     @classmethod
     def check_lines(cls, reconciliations):
+        modules = None
         Lang = Pool().get('ir.lang')
         Configuration = Pool().get('account.configuration')
+        Module = Pool().get('ir.module.module')
+        modules = Module.search([('name', '=', 'nodux_sale_payment_advanced_payment'), ('state', '=', 'installed')])
         for reconciliation in reconciliations:
             debit = Decimal('0.0')
             credit = Decimal('0.0')
@@ -77,11 +80,11 @@ class Reconciliation():
 
                 debit += line.debit
                 credit += line.credit
-
-                if not account:
-                    account = line.account
-                if account == Configuration(1).default_account_advanced:
-                    pass
+                if modules:
+                    if not account:
+                        account = line.account
+                    if account == Configuration(1).default_account_advanced:
+                        pass
                 else:
                     if not account:
                         account = line.account
