@@ -751,12 +751,18 @@ class AccountVoucher(ModelSQL, ModelView):
                     for voucher in move_voucher:
                         for line_v in voucher.lines:
                             if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party:
-                                monto_anticipos += line_v.credit
+                                if "withholding" in str(move_line.origin):
+                                    pass
+                                else:
+                                    monto_anticipos += line_v.credit
                 else:
                     move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
                     for move_line in move_lines:
                         if move_line.credit > Decimal(0.0):
-                            monto_anticipos += move_line.credit
+                            if "withholding" in str(move_line.origin):
+                                pass
+                            else:
+                                monto_anticipos += move_line.credit
 
             if name:
                 Withholding = pool.get('account.withholding')
@@ -1159,26 +1165,7 @@ class AccountVoucher(ModelSQL, ModelView):
 
                 if remainder == Decimal('0.00'):
                     MoveLine.reconcile(reconcile_lines)
-
-        """
-        reconcile_lines = []
-        for line in self.lines_credits:
-            reconcile_lines.append(line.move_line)
-            for move_line in created_lines:
-                if move_line.description == 'advance':
-                    reconcile_lines.append(move_line)
-            MoveLine.reconcile(reconcile_lines)
-
-        reconcile_lines = []
-        for line in self.lines_debits:
-            reconcile_lines.append(line.move_line)
-            for move_line in created_lines:
-                if move_line.description == 'advance':
-                    reconcile_lines.append(move_line)
-            MoveLine.reconcile(reconcile_lines)
-        """
         return True
-
 
     def prepare_postdated_lines(self):
         pool = Pool()
