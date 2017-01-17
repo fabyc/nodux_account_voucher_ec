@@ -1312,19 +1312,21 @@ class AccountVoucher(ModelSQL, ModelView):
         module = None
         Module = pool.get('ir.module.module')
         module = Module.search([('name', '=', 'nodux_account_postdated_check'), ('state', '=', 'installed')])
+        module_bank = Module.search([('name','=','nodux_account_bank_reconcilation'), ('state', '=', 'installed')])
         Banco = pool.get('bank')
 
         for voucher in vouchers:
             if voucher.voucher_type == 'payment':
-                voucher.prepare_bank_reconciliation()
-                for line in voucher.pay_lines:
-                    if line.numero_doc:
-                        numero = int(line.numero_doc[2:])
-                        bancos = Banco.search([('id', '=', line.banco.id)])
-                        for banco in bancos:
-                            numero_actual = banco.nro_documento
-                            banco.nro_documento = numero + 1
-                            banco.save()
+                if module_bank:
+                    voucher.prepare_bank_reconciliation()
+                    for line in voucher.pay_lines:
+                        if line.numero_doc:
+                            numero = int(line.numero_doc[2:])
+                            bancos = Banco.search([('id', '=', line.banco.id)])
+                            for banco in bancos:
+                                numero_actual = banco.nro_documento
+                                banco.nro_documento = numero + 1
+                                banco.save()
 
             voucher.get_value_lines()
             voucher.get_toWords()
