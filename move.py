@@ -4,6 +4,7 @@
 from decimal import Decimal
 from trytond.model import fields
 from trytond.pool import Pool, PoolMeta
+from trytond.transaction import Transaction
 
 __all__ = ['Move', 'Line', 'Reconciliation']
 __metaclass__ = PoolMeta
