@@ -58,6 +58,10 @@ msgctxt "field:account.voucher,date:"
 msgid "Date"
 msgstr "Fecha"
 
+msgctxt "field:account.voucher,description:"
+msgid "Description"
+msgstr "Descripción"
+
 msgctxt "field:account.voucher,from_pay_invoice:"
 msgid "Voucher launched from Pay invoice"
 msgstr "Comprobante lanzado desde Pagar en Factura"
@@ -86,6 +90,14 @@ msgctxt "field:account.voucher,move:"
 msgid "Move"
 msgstr "Movimiento"
 
+msgctxt "field:account.voucher,move_canceled:"
+msgid "Move Canceled"
+msgstr "Asiento Cancelado"
+
+msgctxt "field:account.voucher,no_pagos:"
+msgid "No. de Pagos"
+msgstr ""
+
 msgctxt "field:account.voucher,number:"
 msgid "Number"
 msgstr "Número"
@@ -98,9 +110,29 @@ msgctxt "field:account.voucher,pay_lines:"
 msgid "Pay Mode Lines"
 msgstr "Formas de pago"
 
+msgctxt "field:account.voucher,plazo1:"
+msgid "Dias"
+msgstr ""
+
+msgctxt "field:account.voucher,plazo2:"
+msgid "Dias"
+msgstr ""
+
+msgctxt "field:account.voucher,plazo3:"
+msgid "Dias"
+msgstr ""
+
+msgctxt "field:account.voucher,plazo4:"
+msgid "Dias"
+msgstr ""
+
 msgctxt "field:account.voucher,rec_name:"
 msgid "Name"
 msgstr "Nombre"
+
+msgctxt "field:account.voucher,recaudador:"
+msgid "Recaudador"
+msgstr ""
 
 msgctxt "field:account.voucher,state:"
 msgid "State"
@@ -121,6 +153,10 @@ msgstr "Fecha de modificación"
 msgctxt "field:account.voucher,write_uid:"
 msgid "Write User"
 msgstr "Modificado por usuario"
+
+msgctxt "field:account.voucher.cancel_voucher.start,id:"
+msgid "ID"
+msgstr "Identificador"
 
 msgctxt "field:account.voucher.line,account:"
 msgid "Account"
@@ -177,6 +213,10 @@ msgstr "Nombre"
 msgctxt "field:account.voucher.line,reference:"
 msgid "reference"
 msgstr "Referencia"
+
+msgctxt "field:account.voucher.line,to_pay:"
+msgid "To pay"
+msgstr "A pagar"
 
 msgctxt "field:account.voucher.line,voucher:"
 msgid "Voucher"
@@ -414,9 +454,13 @@ msgctxt "field:account.voucher.sequence,rec_name:"
 msgid "Name"
 msgstr "Nombre"
 
-msgctxt "field:account.voucher.sequence,voucher_sequence:"
-msgid "Voucher Sequence"
-msgstr "Secuencia de comprobante"
+msgctxt "field:account.voucher.sequence,voucher_payment_sequence:"
+msgid "Voucher Payment Sequence"
+msgstr ""
+
+msgctxt "field:account.voucher.sequence,voucher_receipt_sequence:"
+msgid "Voucher Receipt Sequence"
+msgstr "Secuencia Comprobante de Ingreso"
 
 msgctxt "field:account.voucher.sequence,write_date:"
 msgid "Write Date"
@@ -426,33 +470,21 @@ msgctxt "field:account.voucher.sequence,write_uid:"
 msgid "Write User"
 msgstr "Modificado por usuario"
 
-msgctxt "field:account.voucher.sequence_payment,create_date:"
-msgid "Create Date"
-msgstr "Fecha de Creación"
+msgctxt "field:bank,account_expense:"
+msgid "Account"
+msgstr "Financiero"
 
-msgctxt "field:account.voucher.sequence_payment,create_uid:"
-msgid "Create User"
-msgstr "Usuario creación"
+msgctxt "field:bank,nro_cuenta_bancaria:"
+msgid "No. Cuenta Bancaria"
+msgstr ""
 
-msgctxt "field:account.voucher.sequence_payment,id:"
-msgid "ID"
-msgstr "ID"
+msgctxt "field:bank,nro_documento:"
+msgid "No. Documento"
+msgstr ""
 
-msgctxt "field:account.voucher.sequence_payment,rec_name:"
-msgid "Name"
-msgstr "Nombre"
-
-msgctxt "field:account.voucher.sequence_payment,voucher_sequence_payment:"
-msgid "Voucher Sequence Payment"
-msgstr "Secuencia de comprobante de egreso"
-
-msgctxt "field:account.voucher.sequence_payment,write_date:"
-msgid "Write Date"
-msgstr "Fecha de Modificación"
-
-msgctxt "field:account.voucher.sequence_payment,write_uid:"
-msgid "Write User"
-msgstr "Modificado por Usuario"
+msgctxt "field:bank,saldo_inicial:"
+msgid "Saldo Inicial"
+msgstr ""
 
 msgctxt "help:account.voucher,number:"
 msgid "Voucher Number"
@@ -465,6 +497,10 @@ msgstr ""
 msgctxt "model:account.voucher,name:"
 msgid "Account Voucher"
 msgstr "Comprobante contable"
+
+msgctxt "model:account.voucher.cancel_voucher.start,name:"
+msgid "Cancel Voucher Start"
+msgstr "Cancelar Comprobante"
 
 msgctxt "model:account.voucher.line,name:"
 msgid "Account Voucher Line"
@@ -490,10 +526,6 @@ msgctxt "model:account.voucher.sequence,name:"
 msgid "Account Voucher Sequence"
 msgstr "Secuencia de comprobante"
 
-msgctxt "model:account.voucher.sequence_payment,name:"
-msgid "Account Voucher Sequence Payment"
-msgstr "Secuencia de comprobante de egreso"
-
 msgctxt "model:ir.action,name:act_voucher_form"
 msgid "All Vouchers"
 msgstr "Todos los comprobantes"
@@ -514,21 +546,29 @@ msgctxt "model:ir.action,name:wizard_select_invoices"
 msgid "Select Invoices to receive/pay"
 msgstr "Seleccione facturas a cobrar/pagar"
 
-msgctxt "model:ir.sequence,name:seq_account_voucher"
+msgctxt "model:ir.sequence,name:"
 msgid "Account Voucher Receipt"
 msgstr "Comprobante contable"
 
-msgctxt "model:ir.sequence,name:seq_account_voucher_p"
+msgctxt "model:ir.sequence,name:seq_account_voucher_payment"
 msgid "Account Voucher Payment"
-msgstr "Comprobante de egreso"
+msgstr ""
 
-msgctxt "model:ir.sequence.type,name:seq_type_account_voucher"
+msgctxt "model:ir.sequence,name:seq_account_voucher_receipt"
 msgid "Account Voucher Receipt"
 msgstr "Comprobante contable"
 
-msgctxt "model:ir.sequence.type,name:seq_type_account_voucher_p"
+msgctxt "model:ir.sequence.type,name:"
+msgid "Account Voucher Receipt"
+msgstr "Comprobante contable"
+
+msgctxt "model:ir.sequence.type,name:seq_type_account_voucher_payment"
 msgid "Account Voucher Payment"
-msgstr "Comprobante de egreso"
+msgstr "Pago Comprobante"
+
+msgctxt "model:ir.sequence.type,name:seq_type_account_voucher_receipt"
+msgid "Account Voucher Receipt"
+msgstr "Comprobante contable"
 
 msgctxt "model:ir.ui.menu,name:menu_voucher_form"
 msgid "All Vouchers"
@@ -545,6 +585,214 @@ msgstr "Comprobante  de Ingreso"
 msgctxt "model:ir.ui.menu,name:menu_vouchers"
 msgid "Voucher"
 msgstr "Comprobantes"
+
+msgctxt "report:account.voucher.report:"
+msgid ","
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "-"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "/"
+msgstr "/"
+
+msgctxt "report:account.voucher.report:"
+msgid "100 DOLARES"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid ":"
+msgstr ":"
+
+msgctxt "report:account.voucher.report:"
+msgid "BANCO"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "CANCELADO"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "CHEQUE No."
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "COD."
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "COMPROBANTE DE"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "COMPROBANTE DE EGRESO"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "COMPROBANTE DE EGRESO MULTIPAGO"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "CONTABILIZADO:"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "CUENTA"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "DETALLE"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "ELABORADO"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "ENTIDAD:"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "FACTURA"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "FECHA:"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "FIRMA DE RECIBIDO:"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "FORMA DE PAGO"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "GRESO"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "IN"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "Impreso:"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "MOD"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "N.º CUENTA"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "N.º DOCUMENTO/CHEQUE"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "No."
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "O DE PAGO:"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "OBSERVACIONES"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "PAGADO"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "PAGADO A"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "PENDIENTE"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "POR CONCEPTO"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "POR:"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "REVISADO / APROBADO:"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "RUC"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "RUC/C.I.:"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "TERCERO"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "TOTAL"
+msgstr "TOTAL"
+
+msgctxt "report:account.voucher.report:"
+msgid "TOTAL DE FACTURA"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "VALOR"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "VALOR EN LETRAS:"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "VALOR NETO:"
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "["
+msgstr ""
+
+msgctxt "report:account.voucher.report:"
+msgid "]"
+msgstr ""
+
+msgctxt "selection:account.voucher,no_pagos:"
+msgid ""
+msgstr ""
+
+msgctxt "selection:account.voucher,no_pagos:"
+msgid "1 Pago"
+msgstr ""
+
+msgctxt "selection:account.voucher,no_pagos:"
+msgid "2 Pagos"
+msgstr ""
+
+msgctxt "selection:account.voucher,no_pagos:"
+msgid "3 Pagos"
+msgstr ""
+
+msgctxt "selection:account.voucher,no_pagos:"
+msgid "4 Pagos"
+msgstr ""
+
+msgctxt "selection:account.voucher,state:"
+msgid "Canceled"
+msgstr "Cancelado"
 
 msgctxt "selection:account.voucher,state:"
 msgid "Draft"
@@ -627,5 +875,17 @@ msgid "Voucher Lines"
 msgstr "Facturas pendientes"
 
 msgctxt "view:account.voucher:"
+msgid "_Cancel"
+msgstr ""
+
+msgctxt "view:account.voucher:"
 msgid "_Pay"
 msgstr "_Pagar"
+
+msgctxt "wizard_button:account.voucher.cancel_voucher,start,cancel_:"
+msgid "Ok"
+msgstr "Aceptar"
+
+msgctxt "wizard_button:account.voucher.cancel_voucher,start,end:"
+msgid "Exit"
+msgstr "Salir"

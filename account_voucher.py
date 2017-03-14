@@ -5,13 +5,15 @@
 from decimal import Decimal
 from trytond.model import Workflow, ModelSingleton, ModelView, ModelSQL, fields
 from trytond.transaction import Transaction
-from trytond.pyson import Eval, In
+from trytond.pyson import Bool, Eval, Not, In
 from trytond.pool import Pool
 from trytond.report import Report
 import pytz
 from datetime import datetime,timedelta
 import time
-
+from trytond.modules.company import CompanyReport
+from trytond.wizard import Wizard, StateAction, StateView, StateTransition, \
+    Button
 
 conversor = None
 try:
@@ -24,11 +26,20 @@ except:
 
 __all__ = ['AccountVoucherSequence', 'AccountVoucherPayMode', 'AccountVoucher',
     'AccountVoucherLine', 'AccountVoucherLineCredits',
-    'AccountVoucherLineDebits', 'AccountVoucherLinePaymode', 'VoucherReport']
+    'AccountVoucherLineDebits', 'AccountVoucherLinePaymode', 'VoucherReport',
+    'PrintMove', 'PrintCheck', 'CancelVoucherStart', 'CancelVoucher']
 
 _STATES = {
     'readonly': In(Eval('state'), ['posted']),
 }
+
+_NOPAGOS = [
+    ('',''),
+    ('1', '1 Pago'),
+    ('2', '2 Pagos'),
+    ('3', '3 Pagos'),
+    ('4', '4 Pagos'),
+]
 
 class AccountVoucherSequence(ModelSingleton, ModelSQL, ModelView):
     'Account Voucher Sequence'
@@ -53,6 +64,10 @@ class AccountVoucherPayMode(ModelSQL, ModelView):
 
     name = fields.Char('Name')
     account = fields.Many2One('account.account', 'Account')
+
+    def change_account(self, banco):
+        self.account = banco
+        #self.write([self],{'account': banco})
 
 
 class AccountVoucher(ModelSQL, ModelView):
@@ -110,6 +125,42 @@ class AccountVoucher(ModelSQL, ModelView):
     transfer = fields.Boolean('Realizar movimiento', help='Realizar movimiento de caja a bancos, o transferencia entre bancos',states={
                 'readonly':In(Eval('state'), ['posted']),
                 })
+    description = fields.Char('Description', states=_STATES)
+
+    no_pagos = fields.Selection(_NOPAGOS, 'No. de Pagos', states={
+        'invisible': (Eval('voucher_type') != 'payment') | (Not(Bool(Eval('lines')))),
+        'readonly': In(Eval('state'), ['posted', 'canceled']),
+    })
+
+    plazo1 = fields.Integer('Dias', states={
+        'invisible': (Eval('voucher_type') != 'payment') | (Not(Bool(Eval('lines')))) | (Eval('no_pagos').in_([''])),
+        'required': Eval('no_pagos').in_(['1','2','3', '4'])  & (Eval('voucher_type') == 'payment'),
+        'readonly': In(Eval('state'), ['posted', 'canceled']),
+    })
+    plazo2 = fields.Integer('Dias', states={
+        'invisible': Eval('no_pagos').in_(['','1']) | (Eval('voucher_type') != 'payment'),
+        'required': Eval('no_pagos').in_(['2', '3', '4']) & (Eval('voucher_type') == 'payment'),
+        'readonly': In(Eval('state'), ['posted', 'canceled']),
+    })
+    plazo3 = fields.Integer('Dias', states={
+        'invisible': Eval('no_pagos').in_(['','1', '2']) | (Eval('voucher_type') != 'payment'),
+        'required': Eval('no_pagos').in_(['3', '4'])  & (Eval('voucher_type') == 'payment'),
+        'readonly': In(Eval('state'), ['posted', 'canceled']),
+    })
+    plazo4 = fields.Integer('Dias', states={
+        'invisible': Eval('no_pagos').in_(['','1', '2', '3']) | (Eval('voucher_type') != 'payment'),
+        'required': Eval('no_pagos').in_(['4'])  & (Eval('voucher_type') == 'payment'),
+        'readonly': In(Eval('state'), ['posted', 'canceled']),
+    })
+
+    recaudador = fields.Many2One('res.user', 'Recaudador',
+        domain=[
+            ('company', '=', Eval('company', -1)),
+            ],
+        states={
+            'readonly': Eval('state') != 'draft',
+            },
+        depends=['state', 'company'])
 
     @classmethod
     def __setup__(cls):
@@ -142,11 +193,21 @@ class AccountVoucher(ModelSQL, ModelView):
         return False
 
     @staticmethod
+    def default_no_pagos():
+        return ''
+
+    @staticmethod
     def default_currency():
         Company = Pool().get('company.company')
         company_id = Transaction().context.get('company')
         if company_id:
             return Company(company_id).currency.id
+
+    @staticmethod
+    def default_recaudador():
+        User = Pool().get('res.user')
+        user = User(Transaction().user)
+        return user.id
 
     @staticmethod
     def default_company():
@@ -195,6 +256,7 @@ class AccountVoucher(ModelSQL, ModelView):
             for line in self.pay_lines:
                 if line.pay_amount:
                     amount += line.pay_amount
+        """
         if self.lines_credits:
             for line in self.lines_credits:
                 if line.amount_original:
@@ -203,6 +265,7 @@ class AccountVoucher(ModelSQL, ModelView):
             for line in self.lines_debits:
                 if line.amount_original:
                     amount += line.amount_original
+        """
         return amount
 
     @fields.depends('party', 'lines')
@@ -210,7 +273,8 @@ class AccountVoucher(ModelSQL, ModelView):
         total = 0
         if self.lines:
             for line in self.lines:
-                total += line.amount_unreconciled or Decimal('0.00')
+                if line.to_pay == True:
+                    total += line.amount_unreconciled or Decimal('0.00')
         return total
 
     @fields.depends('lines', 'pay_lines')
@@ -221,9 +285,358 @@ class AccountVoucher(ModelSQL, ModelView):
                 total += line.amount or Decimal('0.00')
         return total
 
+    @fields.depends('plazo1', 'plazo2', 'plazo3', 'plazo4', 'amount_to_pay',
+    'lines', 'date', 'pay_lines', 'no_pagos')
+    def on_change_plazo1(self):
+        if self.pay_lines:
+            return
+        pay_lines = []
+        PayLines = Pool().get('account.voucher.line.paymode')
+        payment_line = PayLines()
+
+        fecha = self.date
+        date = self.date
+
+
+        amount_unreconciled = Decimal(0.0)
+        if self.lines:
+            for line in self.lines:
+                if line.to_pay == True:
+                    date = line.date
+        dias = timedelta(self.plazo1)
+
+        fecha = date + dias
+        if self.no_pagos == '1':
+            payment_line.fecha = fecha
+            payment_line.pay_amount = self.amount_to_pay
+            pay_lines.append(payment_line)
+
+        elif self.no_pagos == '2':
+
+            if self.plazo2:
+                valor = self.amount_to_pay/2
+                dias2 = timedelta(self.plazo2)
+                fecha2 = date + dias
+
+                payment_line.fecha = fecha
+                payment_line.pay_amount = valor
+                pay_lines.append(payment_line)
+
+                payment_line.fecha = fecha2
+                payment_line.pay_amount = valor
+                pay_lines.append(payment_line)
+
+        elif self.no_pagos == '3':
+            if self.plazo2 and self.plazo3:
+                valor = self.amount_to_pay/3
+                dias2 = timedelta(self.plazo2)
+                fecha2 = date + dias2
+                dias3= timedelta(self.plazo3)
+                fecha3 = date + dias3
+
+                payment_line.fecha = fecha
+                payment_line.pay_amount = valor
+                pay_lines.append(payment_line)
+
+                payment_line.fecha = fecha2
+                payment_line.pay_amount = valor
+                pay_lines.append(payment_line)
+
+                payment_line.fecha = fecha3
+                payment_line.pay_amount = valor
+                pay_lines.append(payment_line)
+
+        elif self.no_pagos == '4':
+
+            if self.plazo2 and self.plazo3 and self.plazo4:
+                valor = self.amount_to_pay/4
+                dias2 = timedelta(self.plazo2)
+                fecha2 = date + dias2
+                dias3= timedelta(self.plazo3)
+                fecha3 = date + dias3
+                dias4 = timedelta(self.plazo4)
+                fecha4 = date + dias4
+
+                payment_line.fecha = fecha
+                payment_line.pay_amount = valor
+                pay_lines.append(payment_line)
+
+                payment_line.fecha = fecha2
+                payment_line.pay_amount = valor
+                pay_lines.append(payment_line)
+
+                payment_line.fecha = fecha3
+                payment_line.pay_amount = valor
+                pay_lines.append(payment_line)
+
+                payment_line.fecha = fecha4
+                payment_line.pay_amount = valor
+                pay_lines.append(payment_line)
+
+        self.pay_lines = pay_lines
+
+    @fields.depends('plazo1', 'plazo2', 'plazo3', 'plazo4', 'amount_to_pay',
+    'lines', 'date', 'pay_lines', 'no_pagos')
+    def on_change_plazo2(self):
+        if self.pay_lines:
+            return
+
+        pay_lines = []
+        PayLines = Pool().get('account.voucher.line.paymode')
+        payment_line = PayLines()
+
+        fecha = self.date
+        date = self.date
+
+        amount_unreconciled = Decimal(0.0)
+        if self.lines:
+            for line in self.lines:
+                if line.to_pay == True:
+                    date = line.date
+
+        dias = timedelta(self.plazo1)
+        fecha = date + dias
+        if self.no_pagos == '1':
+            payment_line.fecha = fecha
+            payment_line.pay_amount = self.amount_to_pay
+            pay_lines.append(payment_line)
+
+        elif self.no_pagos == '2':
+            valor = self.amount_to_pay/2
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+
+            payment_line.fecha = fecha
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha2
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+        elif self.no_pagos == '3':
+            valor = self.amount_to_pay/3
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+
+            payment_line.fecha = fecha
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha2
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha3
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+        elif self.no_pagos == '4':
+            valor = self.amount_to_pay/4
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+            dias4 = timedelta(self.plazo4)
+            fecha4 = date + dias4
+
+            payment_line.fecha = fecha
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha2
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha3
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha4
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+        self.pay_lines = pay_lines
+
+    @fields.depends('plazo1', 'plazo2', 'plazo3', 'plazo4', 'amount_to_pay',
+    'lines', 'date', 'pay_lines', 'no_pagos')
+    def on_change_plazo3(self):
+        if self.pay_lines:
+            return
+
+        pay_lines = []
+        PayLines = Pool().get('account.voucher.line.paymode')
+        payment_line = PayLines()
+
+        fecha = self.date
+        date = self.date
+
+        amount_unreconciled = Decimal(0.0)
+        if self.lines:
+            for line in self.lines:
+                if line.to_pay == True:
+                    date = line.date
+
+        dias = timedelta(self.plazo1)
+        fecha = date + dias
+        if self.no_pagos == '1':
+            payment_line.fecha = fecha
+            payment_line.pay_amount = self.amount_to_pay
+            pay_lines.append(payment_line)
+
+        elif self.no_pagos == '2':
+            valor = self.amount_to_pay/2
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias
+
+            payment_line.fecha = fecha
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha2
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+        elif self.no_pagos == '3':
+            valor = self.amount_to_pay/3
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+
+            payment_line.fecha = fecha
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha2
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha3
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+        elif self.no_pagos == '4':
+            valor = self.amount_to_pay/4
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+            dias4 = timedelta(self.plazo4)
+            fecha4 = date + dias4
+
+            payment_line.fecha = fecha
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha2
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha3
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha4
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+        self.pay_lines = pay_lines
+
+    @fields.depends('plazo1', 'plazo2', 'plazo3', 'plazo4', 'amount_to_pay',
+    'lines', 'date', 'pay_lines', 'no_pagos')
+    def on_change_plazo4(self):
+        pay_lines = []
+        PayLines = Pool().get('account.voucher.line.paymode')
+        payment_line = PayLines()
+
+        if self.pay_lines:
+            return
+
+        fecha = self.date
+        date = self.date
+
+        amount_unreconciled = Decimal(0.0)
+        if self.lines:
+            for line in self.lines:
+                if line.to_pay == True:
+                    date = line.date
+
+        dias = timedelta(self.plazo1)
+        fecha = date + dias
+        if self.no_pagos == '1':
+            payment_line.fecha = fecha
+            payment_line.pay_amount = self.amount_to_pay
+            pay_lines.append(payment_line)
+
+        elif self.no_pagos == '2':
+            valor = self.amount_to_pay/2
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias
+            payment_line.fecha = fecha
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha2
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+        elif self.no_pagos == '3':
+            valor = self.amount_to_pay/3
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+
+            payment_line.fecha = fecha
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha2
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha3
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+        elif self.no_pagos == '4':
+            valor = self.amount_to_pay/4
+            dias2 = timedelta(self.plazo2)
+            fecha2 = date + dias2
+            dias3= timedelta(self.plazo3)
+            fecha3 = date + dias3
+            dias4 = timedelta(self.plazo4)
+            fecha4 = date + dias4
+
+            payment_line.fecha = fecha
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha2
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha3
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+            payment_line.fecha = fecha4
+            payment_line.pay_amount = valor
+            pay_lines.append(payment_line)
+
+        self.pay_lines = pay_lines
+
+        return res
+
     @fields.depends('party', 'voucher_type', 'lines', 'lines_credits',
         'lines_debits', 'from_pay_invoice')
     def on_change_party(self):
+        self.add_lines()
+
+    def add_lines(self):
         pool = Pool()
         Invoice = pool.get('account.invoice')
         MoveLine = pool.get('account.move.line')
@@ -233,17 +646,12 @@ class AccountVoucher(ModelSQL, ModelView):
         PaymentLineCredits = pool.get('account.voucher.line.credits')
         PaymentLineDebits = pool.get('account.voucher.line.debits')
 
-        if self.from_pay_invoice:
-            # The voucher was launched from Invoice's PayInvoice wizard:
-            # 'lines', 'lines_credits', 'lines_debits' should be set there
-            return {}
-
         lines = []
         lines_credits = []
         lines_debits = []
 
         if self.lines:
-            return
+            self.lines = lines
 
         if self.voucher_type == 'receipt':
             account_types = ['receivable']
@@ -281,6 +689,7 @@ class AccountVoucher(ModelSQL, ModelView):
                     name = invoice.number
                 else:
                     name = invoice.reference
+
             payment_line = AccountVoucherLine()
             payment_line.name = name
             payment_line.account = line.account.id
@@ -335,15 +744,25 @@ class AccountVoucher(ModelSQL, ModelView):
             'journal': self.journal.id,
             'date': self.date,
             'origin': str(self),
+            'description' : self.description,
         }])
         self.write([self], {
                 'move': move.id,
                 })
 
 
+        #Verificar saldo anticipos
+        total = self.amount
+        if self.lines:
+            for line in self.lines:
+                if line.to_pay == True:
+                    if not line.amount:
+                        continue
+                    total -= line.amount
         #
         # Pay Modes
         #
+        cont = 1
         if self.pay_lines:
             for line in self.pay_lines:
                 if self.voucher_type == 'receipt':
@@ -361,7 +780,7 @@ class AccountVoucher(ModelSQL, ModelView):
                     'journal': self.journal.id,
                     'period': Period.find(self.company.id, date=self.date),
                 })
-
+        """
         #
         # Credits
         #
@@ -397,33 +816,33 @@ class AccountVoucher(ModelSQL, ModelView):
                     'period': Period.find(self.company.id, date=self.date),
                     'party': self.party.id,
                 })
-
+        """
         #
         # Voucher Lines
         #
-        total = self.amount
         if self.lines:
             for line in self.lines:
-                if not line.amount:
-                    continue
-                line_move_ids.append(line.move_line)
-                if self.voucher_type == 'receipt':
-                    debit = Decimal('0.00')
-                    credit = line.amount
-                else:
-                    debit = line.amount
-                    credit = Decimal('0.00')
-                total -= line.amount
-                move_lines.append({
-                    'description': Invoice(line.move_line.origin.id).number,
-                    'debit': debit,
-                    'credit': credit,
-                    'account': line.account.id,
-                    'move': move.id,
-                    'journal': self.journal.id,
-                    'period': Period.find(self.company.id, date=self.date),
-                    'party': self.party.id,
-                })
+                if line.to_pay == True:
+                    if not line.amount:
+                        continue
+                    line_move_ids.append(line.move_line)
+                    if self.voucher_type == 'receipt':
+                        debit = Decimal('0.00')
+                        credit = line.amount
+                    else:
+                        debit = line.amount
+                        credit = Decimal('0.00')
+                    total -= line.amount
+                    move_lines.append({
+                        'description': Invoice(line.move_line.origin.id).number,
+                        'debit': debit,
+                        'credit': credit,
+                        'account': line.account.id,
+                        'move': move.id,
+                        'journal': self.journal.id,
+                        'period': Period.find(self.company.id, date=self.date),
+                        'party': self.party.id,
+                    })
         if total != Decimal('0.00'):
             if self.voucher_type == 'receipt':
                 debit = Decimal('0.00')
@@ -460,9 +879,10 @@ class AccountVoucher(ModelSQL, ModelView):
         name = None
         invoice = None
         for line in self.lines:
-            original = line.amount_original
-            unreconciled = line.amount_unreconciled
-            name = line.name
+            if line.to_pay == True:
+                original = line.amount_original
+                unreconciled = line.amount_unreconciled
+                name = line.name
         if name != None:
             invoice = Invoice.search([('number', '=', name), ('description', '!=', None)])
         if invoice:
@@ -482,26 +902,27 @@ class AccountVoucher(ModelSQL, ModelView):
 
         # reconcile check
         for line in self.lines:
-            if line.amount == Decimal("0.00"):
-                continue
-            invoice = Invoice(line.move_line.origin.id)
-            if self.voucher_type == 'receipt':
-                amount = line.amount
-            else:
-                amount = -line.amount
-            reconcile_lines, remainder = \
-                Invoice.get_reconcile_lines_for_amount(
-                    invoice, amount)
-            for move_line in created_lines:
-                if move_line.description == 'advance':
+            if line.to_pay == True:
+                if line.amount == Decimal("0.00"):
                     continue
-                if move_line.description == invoice.number:
-                    reconcile_lines.append(move_line)
-                    Invoice.write([invoice], {
-                        'payment_lines': [('add', [move_line.id])],
-                        })
-            if remainder == Decimal('0.00'):
-                MoveLine.reconcile(reconcile_lines)
+                invoice = Invoice(line.move_line.origin.id)
+                if self.voucher_type == 'receipt':
+                    amount = line.amount
+                else:
+                    amount = -line.amount
+                reconcile_lines, remainder = \
+                    Invoice.get_reconcile_lines_for_amount(
+                        invoice, amount)
+                for move_line in created_lines:
+                    if move_line.description == 'advance':
+                        continue
+                    if move_line.description == invoice.number:
+                        reconcile_lines.append(move_line)
+                        Invoice.write([invoice], {
+                            'payment_lines': [('add', [move_line.id])],
+                            })
+                if remainder == Decimal('0.00'):
+                    MoveLine.reconcile(reconcile_lines)
 
         reconcile_lines = []
         for line in self.lines_credits:
@@ -577,7 +998,6 @@ class AccountVoucher(ModelSQL, ModelView):
         for cancel_line in canceled_move.lines:
             if cancel_line.account.reconcile:
                 lines_to_reconcile.append(cancel_line)
-
         if lines_to_reconcile:
             MoveLine.reconcile(lines_to_reconcile)
 
@@ -715,6 +1135,7 @@ class AccountVoucherLine(ModelSQL, ModelView):
     date = fields.Date('Date')
     date_expire = fields.Function(fields.Date('Expire date'),
             'get_expire_date')
+    to_pay = fields.Boolean('To pay')
 
     def get_reference(self, name):
         Invoice = Pool().get('account.invoice')
@@ -816,7 +1237,7 @@ class VoucherReport(Report):
 
         context = Transaction().context
 
-        report_context = super(InvoiceReport, cls).get_context(
+        report_context = super(VoucherReport, cls).get_context(
             records, data)
 
         voucher = records[0]
@@ -839,9 +1260,96 @@ class VoucherReport(Report):
         report_context['transfer'] = 'false'
 
         new_objs = []
-        for obj in objects:
+        for obj in records:
             if obj.amount_to_pay and conversor and not obj.amount_to_pay_words:
                 obj.amount_to_pay_words = obj.get_amount2words(obj.amount_to_pay)
             new_objs.append(obj)
 
         return report_context
+
+class PrintMove(CompanyReport):
+    'Print Move'
+    __name__ = 'account.voucher.print_move'
+
+    @classmethod
+    def __setup__(cls):
+        super(PrintMove, cls).__setup__()
+
+    @classmethod
+    def parse(cls, report, objects, data, localcontext=None):
+        pool = Pool()
+        Move = pool.get('account.move')
+        sum_debit = Decimal('0.0')
+        sum_credit = Decimal('0.0')
+        invoice = Transaction().context.get('move')
+        for invoice in objects:
+            for line in invoice.move.lines:
+                sum_debit += line.debit
+                sum_credit += line.credit
+
+        localcontext['company'] = Transaction().context.get('company')
+        localcontext['move'] = Transaction().context.get('company')
+        localcontext['invoice'] = Transaction().context.get('voucher')
+        localcontext['sum_debit'] = sum_debit
+        localcontext['sum_credit'] = sum_credit
+
+        return super(PrintMove, cls).parse(report,
+                objects, data, localcontext)
+
+class PrintCheck(Report):
+    'Print Check'
+    __name__ = 'account.voucher.print_check'
+
+    @classmethod
+    def parse(cls, report, objects, data, localcontext=None):
+        Company = Pool().get('company.company')
+        company_id = Transaction().context.get('company')
+        company = Company(company_id)
+        for obj in objects:
+            d = str(obj.amount)
+            decimales = d[-2:]
+            if decimales[0] == '.':
+                 decimales = decimales[1]+'0'
+
+        if company.timezone:
+            timezone = pytz.timezone(company.timezone)
+            dt = datetime.now()
+            hora = datetime.astimezone(dt.replace(tzinfo=pytz.utc), timezone)
+
+        localcontext['company'] = company
+        localcontext['decimales'] = decimales
+        localcontext['hora'] = hora.strftime('%H:%M:%S')
+        localcontext['fecha'] = hora.strftime('%d/%m/%Y')
+
+        new_objs = []
+        for obj in objects:
+            if obj.amount_to_pay and conversor and not obj.amount_to_pay_words:
+                obj.amount_to_pay_words = obj.get_amount2words(obj.amount_to_pay)
+            new_objs.append(obj)
+        return super(PrintCheck, cls).parse(report,
+                new_objs, data, localcontext)
+
+class CancelVoucherStart(ModelView):
+    'Cancel Voucher Start'
+    __name__ = 'account.voucher.cancel_voucher.start'
+
+
+class CancelVoucher(Wizard):
+    'Cancel Voucher'
+    __name__ = 'account.voucher.cancel_voucher'
+    start = StateView('account.voucher.cancel_voucher.start',
+        'nodux_account_voucher_ec.cancel_voucher_start_view_form', [
+            Button('Exit', 'end', 'tryton-cancel'),
+            Button('Ok', 'cancel_', 'tryton-ok', default=True),
+            ])
+
+    cancel_ = StateAction('nodux_account_voucher_ec.act_voucher_form')
+
+    def do_cancel_(self, action):
+        pool = Pool()
+        Voucher = pool.get('account.voucher')
+        vouchers = Voucher.browse(Transaction().context['active_ids'])
+        for voucher in vouchers:
+            voucher.create_cancel_move()
+            voucher.state = 'canceled'
+            voucher.save()
