@@ -911,17 +911,25 @@ class AccountVoucher(ModelSQL, ModelView):
         cont = 1
         if self.pay_lines:
             for line in self.pay_lines:
+                print "Cont ", cont
+                print "len pay_lines", len(self.pay_lines)
+                print "Total ", total
                 if cont == len(self.pay_lines) and total > Decimal('0.00'):
                     if self.voucher_type == 'receipt':
                         debit = line.pay_amount - total
                         credit = Decimal('0.0')
                         account = line.pay_mode.account.id
                         account_advanced_new =  line.pay_mode.account
+
                 else:
                     if self.voucher_type == 'receipt':
                         debit = line.pay_amount
                         credit = Decimal('0.0')
-                        account = line.pay_mode.account.id
+                        if line.banco:
+                            account = line.banco.account_expense.id
+                        else:
+                            account = line.pay_mode.account.id
+
                     else:
                         debit = Decimal('0.0')
                         credit = line.pay_amount
