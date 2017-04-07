@@ -744,7 +744,6 @@ class AccountVoucher(ModelSQL, ModelView):
             if model[:model.find(',')] == 'account.invoice':
                 name = Invoice(line.origin.id).number
                 description = Invoice(line.origin.id).description
-
             if description:
                 move_voucher = Move.search([('description', '=', description)])
                 if move_voucher:
@@ -755,14 +754,29 @@ class AccountVoucher(ModelSQL, ModelView):
                                     pass
                                 else:
                                     monto_anticipos += line_v.credit
-                else:
                     move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
                     for move_line in move_lines:
                         if move_line.credit > Decimal(0.0):
+                            if  "voucher" in str(move_line.origin):
+                                if move_line.description == name:
+                                    monto_anticipos += move_line.credit
                             if "withholding" in str(move_line.origin):
                                 pass
+                else:
+                    move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
+
+                    for move_line in move_lines:
+                        if move_line.credit > Decimal(0.0):
+                            if  "voucher" in str(move_line.origin):
+                                if move_line.description == name:
+                                    monto_anticipos += move_line.credit
+                            if "withholding" in str(move_line.origin):
+                                pass
+                            """
+                            Check advanced_payment
                             else:
                                 monto_anticipos += move_line.credit
+                            """
 
             if name:
                 Withholding = pool.get('account.withholding')
@@ -911,9 +925,6 @@ class AccountVoucher(ModelSQL, ModelView):
         cont = 1
         if self.pay_lines:
             for line in self.pay_lines:
-                print "Cont ", cont
-                print "len pay_lines", len(self.pay_lines)
-                print "Total ", total
                 if cont == len(self.pay_lines) and total > Decimal('0.00'):
                     if self.voucher_type == 'receipt':
                         debit = line.pay_amount - total
