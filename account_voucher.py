@@ -780,7 +780,7 @@ class AccountVoucher(ModelSQL, ModelView):
 
             if name:
                 Withholding = pool.get('account.withholding')
-                withholdings = Withholding.search([('number_w', '=', name)])
+                withholdings = Withholding.search([('number_w', '=', name), ('state', '=','posted')])
                 if withholdings:
                     for withholding in withholdings:
                         for line_w in withholding.move.lines:
