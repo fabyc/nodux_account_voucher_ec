@@ -722,13 +722,13 @@ class AccountVoucher(ModelSQL, ModelView):
             ('state', '=', 'valid'),
             ('reconciliation', '=', None),
         ])
-
         for line in move_lines:
             monto_anticipos = Decimal(0.0)
             monto_retenciones = Decimal(0.0)
             invoice = InvoiceAccountMoveLine.search([
                 ('line', '=', line.id),
             ])
+            print "Invoice ", invoice
             if invoice:
                 continue
 
@@ -744,48 +744,55 @@ class AccountVoucher(ModelSQL, ModelView):
             if model[:model.find(',')] == 'account.invoice':
                 name = Invoice(line.origin.id).number
                 description = Invoice(line.origin.id).description
-            if description:
-                move_voucher = Move.search([('description', '=', description)])
-                if move_voucher:
-                    for voucher in move_voucher:
-                        for line_v in voucher.lines:
-                            if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party:
+            if self.voucher_type == "receipt":
+                if description:
+                    move_voucher = Move.search([('description', '=', description)])
+                    if move_voucher:
+                        for voucher in move_voucher:
+                            for line_v in voucher.lines:
+                                if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party:
+                                    if "withholding" in str(move_line.origin):
+                                        pass
+                                    else:
+                                        monto_anticipos += line_v.credit
+                        move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
+                        for move_line in move_lines:
+                            if move_line.credit > Decimal(0.0):
+                                if  "voucher" in str(move_line.origin):
+                                    if move_line.description == name:
+                                        monto_anticipos += move_line.credit
                                 if "withholding" in str(move_line.origin):
                                     pass
+                    else:
+                        move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
+
+                        for move_line in move_lines:
+                            if move_line.credit > Decimal(0.0):
+                                if  "voucher" in str(move_line.origin):
+                                    if move_line.description == name:
+                                        monto_anticipos += move_line.credit
+                                if "withholding" in str(move_line.origin):
+                                    pass
+                                """
+                                Check advanced_payment
                                 else:
-                                    monto_anticipos += line_v.credit
-                    move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
-                    for move_line in move_lines:
-                        if move_line.credit > Decimal(0.0):
-                            if  "voucher" in str(move_line.origin):
-                                if move_line.description == name:
                                     monto_anticipos += move_line.credit
-                            if "withholding" in str(move_line.origin):
-                                pass
-                else:
-                    move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
+                                """
 
-                    for move_line in move_lines:
-                        if move_line.credit > Decimal(0.0):
-                            if  "voucher" in str(move_line.origin):
-                                if move_line.description == name:
-                                    monto_anticipos += move_line.credit
-                            if "withholding" in str(move_line.origin):
-                                pass
-                            """
-                            Check advanced_payment
-                            else:
-                                monto_anticipos += move_line.credit
-                            """
+                if name:
+                    Withholding = pool.get('account.withholding')
+                    withholdings = Withholding.search([('number_w', '=', name), ('state', '=','posted')])
+                    if withholdings:
+                        for withholding in withholdings:
+                            for line_w in withholding.move.lines:
+                                if line_w.reconciliation == None and line_w.credit > Decimal(0.0) and line_w.party  == self.party:
+                                    monto_retenciones += line_w.credit
 
-            if name:
-                Withholding = pool.get('account.withholding')
-                withholdings = Withholding.search([('number_w', '=', name), ('state', '=','posted')])
-                if withholdings:
-                    for withholding in withholdings:
-                        for line_w in withholding.move.lines:
-                            if line_w.reconciliation == None and line_w.credit > Decimal(0.0) and line_w.party  == self.party:
-                                monto_retenciones += line_w.credit
+            else:
+                lines_payments = MoveLine.search([('description', '=', name), ('reconciliation', '=', None), ('party', '=', self.party), ('debit', '>', 0)])
+                if lines_payments:
+                    for line_payment in lines_payments:
+                        monto_anticipos += line_payment.debit
 
             if self.voucher_type == 'receipt':
                 new_amount = line.debit
@@ -1128,13 +1135,24 @@ class AccountVoucher(ModelSQL, ModelView):
                                     if line_w.reconciliation == None and line_w.credit > Decimal(0.0) and line_w.party  == self.party:
                                         monto_retenciones += line_w.credit
 
+                else:
+                    lines_payments = MoveLine.search([('description', '=', line.name), ('reconciliation', '=', None), ('party', '=', self.party), ('debit', '>', 0)])
+                    if lines_payments:
+                        for line_payment in lines_payments:
+                            monto_anticipos += line_payment.debit
+
                 if self.voucher_type == 'receipt':
                     amount = line.amount + monto_anticipos + monto_retenciones
                 else:
-                    amount = -(line.amount + monto_anticipos)
+                    amount = -(line.amount)
                 reconcile_lines, remainder = \
                     Invoice.get_reconcile_lines_for_amount(
                         invoice, amount)
+
+                if lines_payments:
+                    for line_pay_ in lines_payments:
+                        reconcile_lines.append(line_pay_ )
+
 
                 move_voucher = Move.search([('description', '!=', None)])
                 if move_voucher:
