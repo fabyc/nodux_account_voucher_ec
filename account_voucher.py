@@ -1127,13 +1127,9 @@ class AccountVoucher(ModelSQL, ModelView):
                             for line_v in voucher.lines:
                                 if sale:
                                     description_line = 'used'+str(sale.reference)
-
+                                    #if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == None:
                                     if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == description_line:
                                         monto_anticipos += line_v.credit
-                                    """
-                                    if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == None:
-                                        monto_anticipos += line_v.credit
-                                    """
 
                     if line.name:
                         Withholding = pool.get('account.withholding')
@@ -1148,7 +1144,10 @@ class AccountVoucher(ModelSQL, ModelView):
                         movelines = MoveLine.search([('description', '=', name), ('party', '=', self.party), ('credit', '>', 0), ('reconciliation', '=', None)])
                         if movelines:
                             for moveline in movelines:
-                                monto_comprobante += moveline.credit
+                                if self.move == moveline.move:
+                                    pass
+                                else:
+                                    monto_comprobante += moveline.credit
 
                 else:
                     lines_payments = MoveLine.search([('description', '=', line.name), ('reconciliation', '=', None), ('party', '=', self.party), ('debit', '>', 0)])
@@ -1175,12 +1174,7 @@ class AccountVoucher(ModelSQL, ModelView):
                         if self.voucher_type == 'receipt':
 
                             for line_v in voucher.lines:
-                                """
-                                if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and  line_v.party == self.party and line_v.description == None:
-                                    line_v.state = 'valid'
-                                    line_v.save()
-                                    reconcile_lines.append(line_v)
-                                """
+                                #if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and  line_v.party == self.party and line_v.description == None:
                                 if sale:
                                     description_line = 'used'+str(sale.reference)
                                     if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and  line_v.party == self.party and line_v.description == description_line:
@@ -1209,12 +1203,15 @@ class AccountVoucher(ModelSQL, ModelView):
                     movelines = MoveLine.search([('description', '=', name), ('party', '=', self.party), ('credit', '>', 0), ('reconciliation', '=', None)])
                     if movelines:
                         for moveline in movelines:
-                            reconcile_lines.append(moveline)
-
+                            if moveline.move == self.move:
+                                pass
+                            else:
+                                reconcile_lines.append(moveline)
 
                 for move_line in created_lines:
                     if move_line.description == 'advance':
                         continue
+
                     if move_line.description == invoice.number:
                         move_line.state = 'valid'
                         move_line.save()
@@ -1223,9 +1220,6 @@ class AccountVoucher(ModelSQL, ModelView):
                             'payment_lines': [('add', [move_line.id])],
                         })
 
-                #print "remainder", remainder
-                #print "reconcile_lines", reconcile_lines
-                #print "Mal ", mal
                 if remainder == Decimal('0.00'):
                     MoveLine.reconcile(reconcile_lines)
         return True
