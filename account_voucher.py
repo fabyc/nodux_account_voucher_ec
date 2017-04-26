@@ -1073,8 +1073,10 @@ class AccountVoucher(ModelSQL, ModelView):
         created_lines = MoveLine.create(move_lines)
         Move.post([self.move])
         Sale = pool.get('sale.sale')
+        sale = None
         invoice_d = None
         sales = None
+        lines_payments = None
         name = None
         invoice = None
         withholdings = None
@@ -1117,14 +1119,15 @@ class AccountVoucher(ModelSQL, ModelView):
                     if move_voucher:
                         for voucher in move_voucher:
                             for line_v in voucher.lines:
-                                description_line = 'used'+str(sale.reference)
+                                if sale:
+                                    description_line = 'used'+str(sale.reference)
 
-                                if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == description_line:
-                                    monto_anticipos += line_v.credit
-                                """
-                                if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == None:
-                                    monto_anticipos += line_v.credit
-                                """
+                                    if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == description_line:
+                                        monto_anticipos += line_v.credit
+                                    """
+                                    if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and line_v.party == self.party and line_v.description == None:
+                                        monto_anticipos += line_v.credit
+                                    """
 
                     if line.name:
                         Withholding = pool.get('account.withholding')
@@ -1166,11 +1169,12 @@ class AccountVoucher(ModelSQL, ModelView):
                                     line_v.save()
                                     reconcile_lines.append(line_v)
                                 """
-                                description_line = 'used'+str(sale.reference)
-                                if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and  line_v.party == self.party and line_v.description == description_line:
-                                    line_v.state = 'valid'
-                                    line_v.save()
-                                    reconcile_lines.append(line_v)
+                                if sale:
+                                    description_line = 'used'+str(sale.reference)
+                                    if line_v.reconciliation == None and line_v.credit > Decimal(0.0) and  line_v.party == self.party and line_v.description == description_line:
+                                        line_v.state = 'valid'
+                                        line_v.save()
+                                        reconcile_lines.append(line_v)
 
                 else:
                     move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
