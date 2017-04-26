@@ -724,11 +724,11 @@ class AccountVoucher(ModelSQL, ModelView):
         ])
         for line in move_lines:
             monto_anticipos = Decimal(0.0)
+            monto_comprobante = Decimal(0.0)
             monto_retenciones = Decimal(0.0)
             invoice = InvoiceAccountMoveLine.search([
                 ('line', '=', line.id),
             ])
-            print "Invoice ", invoice
             if invoice:
                 continue
 
@@ -787,6 +787,11 @@ class AccountVoucher(ModelSQL, ModelView):
                             for line_w in withholding.move.lines:
                                 if line_w.reconciliation == None and line_w.credit > Decimal(0.0) and line_w.party  == self.party:
                                     monto_retenciones += line_w.credit
+                    MoveLine = pool.get('account.move.line')
+                    movelines = MoveLine.search([('description', '=', name), ('party', '=', self.party), ('credit', '>', 0), ('reconciliation', '=', None)])
+                    if movelines:
+                        for moveline in movelines:
+                            monto_comprobante += moveline.credit
 
             else:
                 lines_payments = MoveLine.search([('description', '=', name), ('reconciliation', '=', None), ('party', '=', self.party), ('debit', '>', 0)])
@@ -804,7 +809,7 @@ class AccountVoucher(ModelSQL, ModelView):
                 'account': line.account.id,
                 'amount': Decimal('0.00'),
                 'amount_original': amount,
-                'amount_unreconciled': abs((new_amount)-(monto_anticipos+monto_retenciones)),#abs(line.credit) - (monto_anticipos + monto_retenciones)
+                'amount_unreconciled': abs((new_amount)-(monto_anticipos+monto_retenciones+monto_comprobante)),#abs(line.credit) - (monto_anticipos + monto_retenciones)
                 'line_type': line_type,
                 'move_line': line.id,
                 'date': line.date,
@@ -1111,6 +1116,7 @@ class AccountVoucher(ModelSQL, ModelView):
 
                 monto_anticipos = Decimal(0.0)
                 monto_retenciones = Decimal(0.0)
+                monto_comprobante = Decimal(0.0)
 
                 move_voucher = Move.search([('description', '!=', None)])
 
@@ -1138,6 +1144,12 @@ class AccountVoucher(ModelSQL, ModelView):
                                     if line_w.reconciliation == None and line_w.credit > Decimal(0.0) and line_w.party  == self.party:
                                         monto_retenciones += line_w.credit
 
+                        MoveLine = pool.get('account.move.line')
+                        movelines = MoveLine.search([('description', '=', name), ('party', '=', self.party), ('credit', '>', 0), ('reconciliation', '=', None)])
+                        if movelines:
+                            for moveline in movelines:
+                                monto_comprobante += moveline.credit
+
                 else:
                     lines_payments = MoveLine.search([('description', '=', line.name), ('reconciliation', '=', None), ('party', '=', self.party), ('debit', '>', 0)])
                     if lines_payments:
@@ -1145,7 +1157,7 @@ class AccountVoucher(ModelSQL, ModelView):
                             monto_anticipos += line_payment.debit
 
                 if self.voucher_type == 'receipt':
-                    amount = line.amount + monto_anticipos + monto_retenciones
+                    amount = line.amount + monto_anticipos + monto_retenciones + monto_comprobante
                 else:
                     amount = -(line.amount)
                 reconcile_lines, remainder = \
@@ -1193,6 +1205,13 @@ class AccountVoucher(ModelSQL, ModelView):
                                     line_w.save()
                                     reconcile_lines.append(line_w)
 
+                    MoveLine = pool.get('account.move.line')
+                    movelines = MoveLine.search([('description', '=', name), ('party', '=', self.party), ('credit', '>', 0), ('reconciliation', '=', None)])
+                    if movelines:
+                        for moveline in movelines:
+                            reconcile_lines.append(moveline)
+
+
                 for move_line in created_lines:
                     if move_line.description == 'advance':
                         continue
@@ -1204,6 +1223,9 @@ class AccountVoucher(ModelSQL, ModelView):
                             'payment_lines': [('add', [move_line.id])],
                         })
 
+                #print "remainder", remainder
+                #print "reconcile_lines", reconcile_lines
+                #print "Mal ", mal
                 if remainder == Decimal('0.00'):
                     MoveLine.reconcile(reconcile_lines)
         return True
