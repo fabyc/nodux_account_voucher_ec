@@ -763,6 +763,7 @@ class AccountVoucher(ModelSQL, ModelView):
                                         monto_anticipos += move_line.credit
                                 if "withholding" in str(move_line.origin):
                                     pass
+                    
                     else:
                         move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
 
@@ -773,11 +774,12 @@ class AccountVoucher(ModelSQL, ModelView):
                                         monto_anticipos += move_line.credit
                                 if "withholding" in str(move_line.origin):
                                     pass
-                                """
-                                Check advanced_payment
-                                else:
-                                    monto_anticipos += move_line.credit
-                                """
+
+                                #Check advanced_payment
+                                #else:
+                                    #monto_anticipos += move_line.credit
+
+
 
                 if name:
                     Withholding = pool.get('account.withholding')
@@ -791,7 +793,11 @@ class AccountVoucher(ModelSQL, ModelView):
                     movelines = MoveLine.search([('description', '=', name), ('party', '=', self.party), ('credit', '>', 0), ('reconciliation', '=', None)])
                     if movelines:
                         for moveline in movelines:
-                            monto_comprobante += moveline.credit
+                            if  "voucher" in str(moveline.origin):
+                                if moveline.move == self.move:
+                                    pass
+                                else:
+                                    monto_comprobante += moveline.credit
 
             else:
                 lines_payments = MoveLine.search([('description', '=', name), ('reconciliation', '=', None), ('party', '=', self.party), ('debit', '>', 0)])
@@ -803,7 +809,7 @@ class AccountVoucher(ModelSQL, ModelView):
                 new_amount = line.debit
             else:
                 new_amount = line.credit
-
+            print "monto_anticipos", monto_anticipos, monto_retenciones, monto_comprobante
             payment_line = {
                 'name': name,
                 'account': line.account.id,
