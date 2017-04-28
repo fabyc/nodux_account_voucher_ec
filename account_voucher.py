@@ -763,23 +763,7 @@ class AccountVoucher(ModelSQL, ModelView):
                                         monto_anticipos += move_line.credit
                                 if "withholding" in str(move_line.origin):
                                     pass
-                    
-                    else:
-                        move_lines = MoveLine.search([('reconciliation', '=', None),('party', '=', self.party), ('account', '=', self.party.account_receivable)])
-
-                        for move_line in move_lines:
-                            if move_line.credit > Decimal(0.0):
-                                if  "voucher" in str(move_line.origin):
-                                    if move_line.description == name:
-                                        monto_anticipos += move_line.credit
-                                if "withholding" in str(move_line.origin):
-                                    pass
-
-                                #Check advanced_payment
-                                #else:
-                                    #monto_anticipos += move_line.credit
-
-
+                                    
 
                 if name:
                     Withholding = pool.get('account.withholding')
