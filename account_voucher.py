@@ -679,7 +679,7 @@ class AccountVoucher(ModelSQL, ModelView):
         return res
 
     @fields.depends('party', 'voucher_type', 'lines', 'lines_credits',
-        'lines_debits', 'from_pay_invoice')
+        'lines_debits', 'from_pay_invoice', 'move')
     def on_change_party(self):
         pool = Pool()
         Invoice = pool.get('account.invoice')
@@ -763,11 +763,11 @@ class AccountVoucher(ModelSQL, ModelView):
                                         monto_anticipos += move_line.credit
                                 if "withholding" in str(move_line.origin):
                                     pass
-                                    
+
 
                 if name:
                     Withholding = pool.get('account.withholding')
-                    withholdings = Withholding.search([('number_w', '=', name), ('state', '=','posted')])
+                    withholdings = Withholding.search([('number_w', '=', name), ('state', '=','posted'), ('state', '!=', 'draft')])
                     if withholdings:
                         for withholding in withholdings:
                             for line_w in withholding.move.lines:
@@ -793,7 +793,6 @@ class AccountVoucher(ModelSQL, ModelView):
                 new_amount = line.debit
             else:
                 new_amount = line.credit
-            print "monto_anticipos", monto_anticipos, monto_retenciones, monto_comprobante
             payment_line = {
                 'name': name,
                 'account': line.account.id,
@@ -1123,7 +1122,7 @@ class AccountVoucher(ModelSQL, ModelView):
 
                     if line.name:
                         Withholding = pool.get('account.withholding')
-                        withholdings = Withholding.search([('number_w', '=', line.name), ('type', '=', 'out_withholding')])
+                        withholdings = Withholding.search([('number_w', '=', line.name), ('type', '=', 'out_withholding'), ('state', '!=', 'draft')])
                         if withholdings:
                             for withholding in withholdings:
                                 for line_w in withholding.move.lines:
